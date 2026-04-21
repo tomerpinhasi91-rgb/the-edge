@@ -9,6 +9,7 @@ import Spinner from '../components/ui/Spinner'
 export default function LeadRoomView({ setView, setActiveId }) {
   const { user, leads, saveAccount, deleteAccount, showToast } = useApp()
   const [tab, setTab] = useState('prospect')
+  const [researchQuery, setResearchQuery] = useState('')
 
   const TABS = [
     { key: 'prospect', label: '🎯 Prospect finder' },
@@ -29,8 +30,8 @@ export default function LeadRoomView({ setView, setActiveId }) {
         {TABS.map(t => <button key={t.key} className={`tab-btn${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>{t.label}</button>)}
       </div>
       <div className="main-content">
-        {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} />}
-        {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} setTab={setTab} />}
+        {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} setTab={setTab} setResearchQuery={setResearchQuery} />}
+        {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} setTab={setTab} initialQuery={researchQuery} />}
         {tab === 'email' && <EmailFinder user={user} saveAccount={saveAccount} showToast={showToast} leads={leads} />}
         {tab === 'saved' && <SavedLeads leads={leads} deleteAccount={deleteAccount} setActiveId={setActiveId} setView={setView} showToast={showToast} />}
       </div>
@@ -38,13 +39,12 @@ export default function LeadRoomView({ setView, setActiveId }) {
   )
 }
 
-function ProspectFinder({ user, showToast }) {
+function ProspectFinder({ user, showToast, setTab, setResearchQuery }) {
   const [category, setCategory] = useState('')
   const [location, setLocation] = useState('Australia')
   const [loading, setLoading] = useState(false)
   const [prospects, setProspects] = useState([])
   const [status, setStatus] = useState('')
-  const [researchTarget, setResearchTarget] = useState(null)
 
   const CHIPS = ['food manufacturers SA', 'cold chain logistics Adelaide', 'organic produce suppliers', 'packaging companies Melbourne', 'meat processors Queensland']
 
@@ -109,11 +109,11 @@ function ProspectFinder({ user, showToast }) {
             {p.website && <a href={p.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>{p.website.replace('https://', '')}</a>}
           </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' }}>
-            <button className="btn btn-primary btn-sm" onClick={() => setResearchTarget(p.name)} style={{ fontSize: 11 }}>🔍 Research</button>
+            <button className="btn btn-primary btn-sm" onClick={() => { setResearchQuery(p.name); setTab('research'); }} style={{ fontSize: 11 }}>🔍 Research</button>
           </div>
         </div>
       ))}
-      {researchTarget && <CompanyResearch user={user} saveAccount={null} showToast={showToast} setActiveId={null} setView={null} setTab={null} initialQuery={researchTarget} />}
+
     </div>
   )
 }
@@ -121,10 +121,17 @@ function ProspectFinder({ user, showToast }) {
 function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, setTab, initialQuery }) {
   const [query, setQuery] = useState(initialQuery || '')
   const [location, setLocation] = useState('')
-  const [loading, setLoading] = useState(!!initialQuery)
+  const [loading, setLoading] = useState(false)
   const [profile, setProfile] = useState(null)
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Auto-run when coming from Prospect Finder
+  useState(() => {
+    if (initialQuery) {
+      setTimeout(() => run(initialQuery, ''), 100)
+    }
+  })
 
   const run = async (q, loc) => {
     const name = (q || query).trim()
@@ -179,7 +186,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
 
   return (
     <div>
-      {!initialQuery && (
+      {(
         <div className="ai-panel" style={{ marginBottom: 16 }}>
           <div className="lr-search-row" style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <input className="form-input" style={{ flex: 1 }} placeholder="Company name e.g. Maggie Beer, Sundrop Farms..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
