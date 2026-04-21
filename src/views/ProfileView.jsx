@@ -147,11 +147,11 @@ export default function ProfileView() {
               <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label">First name</label>
-                  <input className="form-input" value={profile.firstName} onChange={e => set('firstName', e.target.value)} placeholder="e.g. Tomer" />
+                  <input className="form-input" value={profile.firstName} onChange={e => set('firstName', e.target.value)} placeholder="Your first name" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Last name</label>
-                  <input className="form-input" value={profile.lastName} onChange={e => set('lastName', e.target.value)} placeholder="e.g. Pinhasi" />
+                  <input className="form-input" value={profile.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Your last name" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Mobile</label>
@@ -170,7 +170,7 @@ export default function ProfileView() {
               <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label">Job title</label>
-                  <input className="form-input" value={profile.jobTitle} onChange={e => set('jobTitle', e.target.value)} placeholder="e.g. Area Sales Manager" />
+                  <input className="form-input" value={profile.jobTitle} onChange={e => set('jobTitle', e.target.value)} placeholder="e.g. Sales Manager" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Department</label>
@@ -178,19 +178,19 @@ export default function ProfileView() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Company</label>
-                  <input className="form-input" value={profile.company} onChange={e => set('company', e.target.value)} placeholder="e.g. MULTIVAC" />
+                  <input className="form-input" value={profile.company} onChange={e => set('company', e.target.value)} placeholder="Your company name" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Industry</label>
-                  <input className="form-input" value={profile.industry} onChange={e => set('industry', e.target.value)} placeholder="e.g. Packaging Equipment" />
+                  <input className="form-input" value={profile.industry} onChange={e => set('industry', e.target.value)} placeholder="e.g. Manufacturing, SaaS, Logistics" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Territory / Region</label>
-                  <input className="form-input" value={profile.territory} onChange={e => set('territory', e.target.value)} placeholder="e.g. Western Australia" />
+                  <input className="form-input" value={profile.territory} onChange={e => set('territory', e.target.value)} placeholder="e.g. NSW, ANZ, Southeast Asia" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Target market</label>
-                  <input className="form-input" value={profile.targetMarket} onChange={e => set('targetMarket', e.target.value)} placeholder="e.g. Food manufacturers, FMCG" />
+                  <input className="form-input" value={profile.targetMarket} onChange={e => set('targetMarket', e.target.value)} placeholder="e.g. Mid-market manufacturers, enterprise retail" />
                 </div>
               </div>
             </div>
@@ -203,7 +203,7 @@ export default function ProfileView() {
                   <label className="form-label">What you sell</label>
                   <textarea className="form-input" value={profile.whatYouSell}
                     onChange={e => set('whatYouSell', e.target.value)}
-                    placeholder="e.g. High-end vacuum packaging and traysealing equipment for food manufacturers — MULTIVAC traysealers, thermoformers and labellers"
+                    placeholder="Describe what you sell, key products or solutions, and who your customers are"
                     rows={3} />
                 </div>
                 <div className="form-group">
