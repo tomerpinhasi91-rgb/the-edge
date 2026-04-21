@@ -16,9 +16,9 @@ export default function NewAccountView({ onSave, onCancel }) {
     setSaving(true)
     try {
       const account = { ...form, id: uid(), _type: 'account', signals: [], contacts: [], activities: [], checklist: [], queries: [], coach_sessions: [], createdAt: new Date().toISOString() }
-      const dbId = await saveAccount(account)
+      await saveAccount(account)
       showToast(`${form.name} added`, 'success')
-      onSave(form.id)
+      onSave(account.id)
     } catch (e) {
       showToast(e.message, 'error')
     }
