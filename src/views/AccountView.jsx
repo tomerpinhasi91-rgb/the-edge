@@ -10,6 +10,34 @@ import { STAGE_LABELS } from '../lib/helpers'
 
 const STAGES = ['qualify', 'proposal', 'negotiate', 'closing', 'won', 'lost']
 
+function NotesTab({ account }) {
+  const { saveAccount, showToast } = useApp()
+  const [editing, setEditing] = useState(false)
+  const [notes, setNotes] = useState(account.notes || '')
+  const save = async () => {
+    await saveAccount({ ...account, notes })
+    setEditing(false)
+    showToast('Notes saved', 'success')
+  }
+  return (
+    <div className="main-content">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 500 }}>Notes</div>
+        {editing
+          ? <div style={{ display: 'flex', gap: 6 }}><button className="btn btn-secondary btn-sm" onClick={() => { setEditing(false); setNotes(account.notes || '') }}>Cancel</button><button className="btn btn-primary btn-sm" onClick={save}>Save</button></div>
+          : <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>Edit</button>
+        }
+      </div>
+      {editing
+        ? <textarea className="form-input" value={notes} onChange={e => setNotes(e.target.value)} rows={15} style={{ width: '100%' }} autoFocus />
+        : <div className="card" style={{ minHeight: 120 }}>
+            {account.notes ? <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{account.notes}</div> : <div style={{ color: '#9ca3af', fontSize: 13 }}>No notes yet — click Edit to add</div>}
+          </div>
+      }
+    </div>
+  )
+}
+
 export default function AccountView({ account, setView }) {
   const { saveAccount, deleteAccount, showToast } = useApp()
   const [tab, setTab] = useState('dashboard')
@@ -41,6 +69,7 @@ export default function AccountView({ account, setView }) {
     { key: 'intelligence', label: 'Intelligence' },
     { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
+    { key: 'notes', label: 'Notes' },
     { key: 'coach', label: 'AI Coach' },
   ]
 
@@ -71,6 +100,7 @@ export default function AccountView({ account, setView }) {
       {tab === 'intelligence' && <IntelligenceTab account={account} />}
       {tab === 'activities' && <ActivitiesTab account={account} />}
       {tab === 'contacts' && <ContactsTab account={account} />}
+      {tab === 'notes' && <NotesTab account={account} />}
       {tab === 'coach' && <CoachTab account={account} />}
 
       {/* Edit modal */}
