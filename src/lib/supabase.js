@@ -15,7 +15,12 @@ export const db = {
   async loadAccounts(userId) {
     const { data, error } = await sb.from('accounts').select('*').eq('user_id', userId).order('updated_at', { ascending: false })
     if (error) throw error
-    return (data || []).map(row => ({ ...row.data, id: row.data.id || row.id, _dbId: row.id }))
+    return (data || []).map(row => {
+      const account = { ...row.data, id: row.data.id || row.id, _dbId: row.id }
+      // V2 compatibility: default _type to 'account' if missing
+      if (!account._type) account._type = 'account'
+      return account
+    })
   },
 
   async saveAccount(userId, account) {
