@@ -1,3 +1,18 @@
+const https = require('https');
+
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let raw = '';
+      res.on('data', chunk => raw += chunk);
+      res.on('end', () => {
+        try { resolve({ ok: res.statusCode < 400, status: res.statusCode, data: JSON.parse(raw) }); }
+        catch(e) { resolve({ ok: false, status: res.statusCode, data: { error: raw } }); }
+      });
+    }).on('error', reject);
+  });
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -8,71 +23,43 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const { action, domain, company, first_name, last_name, full_name, email } = req.body || {};
-
-  if (!action) return res.status(400).json({ error: 'action required' });
-
   const API_KEY = process.env.HUNTER_API_KEY;
-  if (!API_KEY) {
-    console.error('HUNTER_API_KEY not set');
-    return res.status(500).json({ error: 'Hunter API key not configured — add HUNTER_API_KEY to Vercel environment variables' });
-  }
+  if (!API_KEY) return res.status(500).json({ error: 'HUNTER_API_KEY not configured' });
+
+  const { query } = req.body || {};
+  if (!query) return res.status(400).json({ error: 'query required' });
 
   try {
-    let url;
-    const params = new URLSearchParams({ api_key: API_KEY });
+    // Check if query looks like a domain
+    const isDomain = query.includes('.') && !query.includes(' ');
+    let domain = isDomain ? query.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
 
-    if (action === 'domain-search') {
-      if (!domain && !company) return res.status(400).json({ error: 'domain or company required' });
-      if (domain) params.set('domain', domain);
-      else params.set('company', company);
-      params.set('limit', '10');
-      url = `https://api.hunter.io/v2/domain-search?${params}`;
-
-    } else if (action === 'email-finder') {
-      if (!domain && !company) return res.status(400).json({ error: 'domain or company required' });
-      if (domain) params.set('domain', domain);
-      else params.set('company', company);
-      if (full_name) params.set('full_name', full_name);
-      else {
-        if (first_name) params.set('first_name', first_name);
-        if (last_name) params.set('last_name', last_name);
-      }
-      url = `https://api.hunter.io/v2/email-finder?${params}`;
-
-    } else if (action === 'email-verifier') {
-      if (!email) return res.status(400).json({ error: 'email required' });
-      params.set('email', email);
-      url = `https://api.hunter.io/v2/email-verifier?${params}`;
-
-    } else if (action === 'account') {
-      url = `https://api.hunter.io/v2/account?${params}`;
-
-    } else {
-      return res.status(400).json({ error: 'Invalid action: ' + action });
+    if (!domain) {
+      // Search by company name to find domain first
+      const searchUrl = `https://api.hunter.io/v2/domain-search?company=${encodeURIComponent(query)}&api_key=${API_KEY}&limit=10`;
+      const result = await httpsGet(searchUrl);
+      if (!result.ok || !result.data?.data) return res.status(200).json({ emails: [], organization: query });
+      const d = result.data.data;
+      return res.status(200).json({
+        emails: d.emails || [],
+        organization: d.organization || query,
+        domain: d.domain || '',
+        pattern: d.pattern || ''
+      });
     }
 
-    const response = await fetch(url);
-    const text = await response.text();
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch(e) {
-      console.error('Hunter returned non-JSON:', text.slice(0, 200));
-      return res.status(500).json({ error: 'Hunter returned invalid response — check API key is valid' });
-    }
-
-    if (!response.ok) {
-      const errMsg = data?.errors?.[0]?.details || data?.errors?.[0]?.id || 'Hunter API error ' + response.status;
-      console.error('Hunter error:', response.status, errMsg);
-      return res.status(response.status).json({ error: errMsg });
-    }
-
-    return res.status(200).json(data);
-
+    const url = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${API_KEY}&limit=10`;
+    const result = await httpsGet(url);
+    if (!result.ok || !result.data?.data) return res.status(200).json({ emails: [], organization: domain });
+    const d = result.data.data;
+    return res.status(200).json({
+      emails: d.emails || [],
+      organization: d.organization || domain,
+      domain: d.domain || domain,
+      pattern: d.pattern || ''
+    });
   } catch(err) {
     console.error('Hunter proxy error:', err);
-    return res.status(500).json({ error: 'Internal server error: ' + err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
