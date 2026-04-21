@@ -28,7 +28,8 @@ export function AppProvider({ children }) {
 
   const saveAccount = useCallback(async (account) => {
     if (!user) throw new Error('Not logged in')
-    const dbId = await db.saveAccount(user.id, account)
+    const accountWithEmail = { ...account, userEmail: user.email }
+    const dbId = await db.saveAccount(user.id, accountWithEmail)
     await loadAccounts(user.id)
     return dbId
   }, [user, loadAccounts])
