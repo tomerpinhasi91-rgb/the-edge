@@ -110,8 +110,8 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
   const [category, setCategory] = useState('')
   const [location, setLocation] = useState('Australia')
   const [loading, setLoading] = useState(false)
-  const [prospects, setProspects] = useState([])
-  const [status, setStatus] = useState('')
+  const [prospects, setProspects] = useState(() => lsGet(LS_PROSPECTS)?.results || [])
+  const [status, setStatus] = useState(() => lsGet(LS_PROSPECTS) ? 'Showing last search — search again to refresh' : '')
 
   const CHIPS = ['food manufacturers SA', 'cold chain logistics Adelaide', 'organic produce suppliers', 'packaging companies Melbourne', 'meat processors Queensland']
 
@@ -124,6 +124,7 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
     if (isDemoUser(user)) {
       await delay(1500)
       setProspects(DEMO_PROSPECTS)
+      lsSet(LS_PROSPECTS, { results: DEMO_PROSPECTS })
       setStatus('Found ' + DEMO_PROSPECTS.length + ' companies matching "' + cat + '" in ' + loc)
       setLoading(false); return
     }
@@ -150,6 +151,7 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
         } catch (e) {}
       })
       setProspects(found.slice(0, 12))
+      lsSet(LS_PROSPECTS, { results: found.slice(0, 12) })
       setStatus(found.length > 0 ? 'Found ' + Math.min(found.length, 12) + ' companies matching "' + cat + '" in ' + loc : 'No companies found — try different keywords')
     } catch (e) { setStatus('Search failed: ' + e.message); showToast(e.message, 'error') }
     setLoading(false)
@@ -192,17 +194,33 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
   )
 }
 
+// ── localStorage helpers ─────────────────────────────────────────
+const LS_RESEARCH = 'te_last_research'
+const LS_PROSPECTS = 'te_last_prospects'
+const LS_RESEARCH_HISTORY = 'te_research_history'
+
+const lsGet = (key) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null } catch (e) { return null } }
+const lsSet = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)) } catch (e) {} }
+
+const addToHistory = (name) => {
+  if (!name || name.length < 2) return
+  const history = lsGet(LS_RESEARCH_HISTORY) || []
+  const updated = [name, ...history.filter(h => h.toLowerCase() !== name.toLowerCase())].slice(0, 6)
+  lsSet(LS_RESEARCH_HISTORY, updated)
+}
+
 // ── Company Research ─────────────────────────────────────────────
 function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, goToEmail, initialQuery }) {
   const [query, setQuery] = useState(initialQuery || '')
   const [location, setLocation] = useState('')
   const [loading, setLoading] = useState(false)
-  const [profile, setProfile] = useState(null)
-  const [status, setStatus] = useState('')
+  const [profile, setProfile] = useState(() => lsGet(LS_RESEARCH))
+  const [status, setStatus] = useState(lsGet(LS_RESEARCH) ? 'Showing last search — type a new company to refresh' : '')
   const [saving, setSaving] = useState(false)
+  const [history, setHistory] = useState(() => lsGet(LS_RESEARCH_HISTORY) || [])
 
   useEffect(() => {
-    if (initialQuery) run(initialQuery, '')
+    if (initialQuery) { setQuery(initialQuery); run(initialQuery, '') }
   }, [initialQuery])
 
   const run = async (q, loc) => {
@@ -215,8 +233,15 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       await delay(1200)
       const key = getDemoKey(name)
       const match = Object.keys(DEMO_RESEARCH).find(k => key.includes(k) || k.includes(key))
-      if (match) { setProfile(DEMO_RESEARCH[match]); setStatus('Found: ' + DEMO_RESEARCH[match].name) }
-      else setStatus('No demo profile for "' + name + '" — try Apex Protein Co, BlueCrest Logistics, Summit Packaging or Harvest Ridge Foods')
+      if (match) {
+        const p = DEMO_RESEARCH[match]
+        setProfile(p); lsSet(LS_RESEARCH, p)
+        setStatus('Found: ' + p.name)
+        addToHistory(p.name)
+        setHistory(lsGet(LS_RESEARCH_HISTORY) || [])
+      } else {
+        setStatus('No demo profile for "' + name + '" — try Apex Protein Co, BlueCrest Logistics, Summit Packaging or Harvest Ridge Foods')
+      }
       setLoading(false); return
     }
 
@@ -232,17 +257,20 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       }
       if (tavily.status === 'fulfilled') context += '\n\nADDITIONAL:\n' + (tavily.value.results || []).slice(0, 3).map(r => r.title + ': ' + (r.content || '').slice(0, 300)).join('\n\n')
 
-      const prompt = 'You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "' + name + '". Return ONLY a valid JSON object (no markdown): {"name":string,"industry":string,"location":string,"size":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"contacts":[{"name":string,"title":string,"linkedin":string,"why_relevant":string}],"talking_points":[string,string,string]}. For contacts, only include real named individuals if you can find them — do NOT include entries with name "Unknown".'
+      // ✅ Contacts removed from AI prompt — they're unreliable from web data.
+      // Use Hunter.io Email Finder for real contacts instead.
+      const prompt = 'You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "' + name + '". Return ONLY a valid JSON object (no markdown): {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"talking_points":[string,string,string]}. Generate 3-5 signals and 3 sharp talking points a B2B sales rep can use in an opening conversation.'
+
       const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1200, false)
       const parsed = extractJSON(result)
       if (parsed && parsed.name) {
-        // Filter out Unknown contacts before setting
-        if (parsed.contacts) {
-          parsed.contacts = parsed.contacts.filter(c => c.name && !c.name.toLowerCase().includes('unknown') && c.name.trim().length > 2)
-        }
-        setProfile(parsed); setStatus('Found: ' + parsed.name)
+        setProfile(parsed)
+        lsSet(LS_RESEARCH, parsed)
+        setStatus('Found: ' + parsed.name)
+        addToHistory(parsed.name)
+        setHistory(lsGet(LS_RESEARCH_HISTORY) || [])
       } else {
-        setStatus('Could not build profile — try a more specific search')
+        setStatus('Could not build profile — try a more specific company name')
       }
     } catch (e) { showToast(e.message, 'error'); setStatus('Search failed') }
     setLoading(false)
@@ -256,7 +284,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
         ...profile, id: uid(), _type: 'lead',
         savedAt: new Date().toISOString().split('T')[0],
         signals: (profile.signals || []).map(s => ({ ...s, id: uid(), date: new Date().toISOString().split('T')[0] })),
-        contacts: (profile.contacts || []).map(c => ({ ...c, id: uid() })),
+        contacts: [],
         activities: [], checklist: [], coach_sessions: []
       }
       await saveAccount(lead)
@@ -267,32 +295,34 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
     setSaving(false)
   }
 
-  const HISTORY = ['Maggie Beer Holdings', 'Sundrop Farms', 'SA Potato Co', 'Beston Global']
-
-  // Extract domain from profile website for Hunter button
   const profileDomain = profile?.website ? profile.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : ''
 
   return (
     <div>
       <div className="ai-panel" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          <input className="form-input" style={{ flex: 1, minWidth: 140 }} placeholder="Company name e.g. Maggie Beer, Sundrop Farms..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
-          <input className="form-input" style={{ width: 140 }} placeholder="Location e.g. SA, WA" value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} />
+          <input className="form-input" style={{ flex: 1, minWidth: 140 }} placeholder="Company name..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
+          <input className="form-input" style={{ width: 130 }} placeholder="Location e.g. SA, WA" value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} />
           <button className="btn btn-primary" onClick={() => run()} disabled={loading}>{loading ? <><Spinner /> Researching…</> : 'Research'}</button>
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {HISTORY.map((h, i) => <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => { setQuery(h); run(h) }}>{h}</button>)}
-        </div>
+        {/* ✅ Real search history chips — updates after every search */}
+        {history.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {history.map((h, i) => (
+              <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => { setQuery(h); run(h) }}>{h}</button>
+            ))}
+          </div>
+        )}
         {status && <div style={{ fontSize: 12, marginTop: 8, color: profile ? '#0F6E56' : '#9ca3af' }}>{status}</div>}
       </div>
 
-      {loading && !profile && (
+      {loading && (
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '40px 20px', color: '#6b7280', fontSize: 13 }}>
           <Spinner /> Researching {query || initialQuery}...
         </div>
       )}
 
-      {profile && (
+      {!loading && profile && (
         <div>
           {/* Profile header */}
           <div className="card" style={{ marginBottom: 12 }}>
@@ -328,41 +358,8 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
             </div>
           )}
 
-          {/* Contacts + Talking points */}
+          {/* Talking points + Hunter CTA side by side */}
           <div className="grid-2">
-            {(profile.contacts || []).length > 0 ? (
-              <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div className="card-title" style={{ margin: 0 }}>Key contacts</div>
-                  {profileDomain && (
-                    <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => goToEmail(profileDomain)}>✉ Find emails</button>
-                  )}
-                </div>
-                {(profile.contacts || []).map((c, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: i < profile.contacts.length - 1 ? '0.5px solid #f3f3f3' : 'none' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#e1f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>{initials(c.name)}</div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>{c.title}</div>
-                      {c.why_relevant && <div style={{ fontSize: 11, color: '#374151', marginTop: 2 }}>{c.why_relevant}</div>}
-                      {c.linkedin && <a href={c.linkedin} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>LinkedIn</a>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* No named contacts found — show email finder prompt instead */
-              <div className="card" style={{ background: '#f9f9f9' }}>
-                <div className="card-title">Key contacts</div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 10 }}>No named contacts found in public data.</div>
-                {profileDomain && (
-                  <button className="btn btn-secondary btn-sm" onClick={() => goToEmail(profileDomain)}>
-                    ✉ Search emails on Hunter.io →
-                  </button>
-                )}
-              </div>
-            )}
-
             {(profile.talking_points || []).length > 0 && (
               <div className="card">
                 <div className="card-title">Talking points</div>
@@ -374,6 +371,23 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
                 ))}
               </div>
             )}
+
+            {/* ✅ Contacts replaced with Hunter CTA — more reliable than AI-guessed names */}
+            <div className="card" style={{ background: '#f9fffe', border: '0.5px solid #9FE1CB' }}>
+              <div className="card-title">Find real contacts</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12, lineHeight: 1.5 }}>
+                AI can't reliably find real named contacts from public data. Use Hunter.io to get verified email addresses for {profile.name}.
+              </div>
+              {profileDomain ? (
+                <button className="btn btn-primary btn-sm" onClick={() => goToEmail(profileDomain)}>
+                  ✉ Find {profile.name} emails →
+                </button>
+              ) : (
+                <button className="btn btn-secondary btn-sm" onClick={() => goToEmail(profile.name)}>
+                  ✉ Search on Hunter.io →
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
