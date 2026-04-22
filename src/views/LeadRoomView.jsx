@@ -372,22 +372,160 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
               </div>
             )}
 
-            {/* ✅ Contacts replaced with Hunter CTA — more reliable than AI-guessed names */}
-            <div className="card" style={{ background: '#f9fffe', border: '0.5px solid #9FE1CB' }}>
-              <div className="card-title">Find real contacts</div>
-              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12, lineHeight: 1.5 }}>
-                AI can't reliably find real named contacts from public data. Use Hunter.io to get verified email addresses for {profile.name}.
+            <ContactFinder profile={profile} profileDomain={profileDomain} goToEmail={goToEmail} user={user} showToast={showToast} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Contact Finder — LinkedIn search via Serper + manual add ─────
+function ContactFinder({ profile, profileDomain, goToEmail, user, showToast }) {
+  const [liResults, setLiResults] = useState([])
+  const [liLoading, setLiLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
+  const [addForm, setAddForm] = useState({ name: '', title: '', linkedin: '', notes: '' })
+
+  const searchLinkedIn = async () => {
+    setLiLoading(true); setLiResults([]); setSearched(false)
+
+    if (isDemoUser(user)) {
+      await delay(900)
+      setLiResults([
+        { name: 'Sarah Mitchell', title: 'Head of Operations', url: 'https://linkedin.com/in/sarah-mitchell-au', snippet: 'Head of Operations at ' + profile.name + ' · Brisbane QLD' },
+        { name: 'James Chen', title: 'CEO & Co-Founder', url: 'https://linkedin.com/in/james-chen-founder', snippet: 'CEO at ' + profile.name + ' · Sydney NSW' },
+        { name: 'Priya Sharma', title: 'Sales Director', url: 'https://linkedin.com/in/priya-sharma-sales', snippet: 'Sales Director at ' + profile.name + ' · Melbourne VIC' },
+      ])
+      setSearched(true); setLiLoading(false); return
+    }
+
+    try {
+      // Search Google for LinkedIn profiles at this company via Serper
+      const q = '"' + profile.name + '" site:linkedin.com/in'
+      const data = await serperSearch(q)
+      const organic = data.organic || []
+      const results = organic
+        .filter(r => r.link && r.link.includes('linkedin.com/in'))
+        .slice(0, 6)
+        .map(r => {
+          // Extract name from LinkedIn URL or title
+          const urlParts = r.link.replace('https://www.linkedin.com/in/', '').replace('https://linkedin.com/in/', '').split('?')[0].split('/')
+          const slugName = urlParts[0].replace(/-\w{1,4}$/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          const titleMatch = r.title.match(/^([^-|–]+)/)
+          const name = titleMatch ? titleMatch[1].trim() : slugName
+          const titleSnippet = r.title.replace(name, '').replace(/^[\s\-–|]+/, '').trim()
+          return { name, title: titleSnippet || r.snippet?.slice(0, 60) || '', url: r.link, snippet: r.snippet || '' }
+        })
+        .filter(r => r.name && r.name.length > 2)
+      setLiResults(results)
+      setSearched(true)
+    } catch (e) {
+      showToast('LinkedIn search failed', 'error')
+    }
+    setLiLoading(false)
+  }
+
+  const setF = (k, v) => setAddForm(p => ({ ...p, [k]: v }))
+
+  const prefillFromLI = (r) => {
+    setAddForm({ name: r.name, title: r.title, linkedin: r.url, notes: r.snippet })
+    setShowAdd(true)
+  }
+
+  return (
+    <div className="card" style={{ background: '#f9fffe', border: '0.5px solid #9FE1CB' }}>
+      <div className="card-title">Find real contacts</div>
+
+      {/* Three action buttons */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={searchLinkedIn}
+          disabled={liLoading}
+          style={{ fontSize: 11 }}
+        >
+          {liLoading ? <><Spinner /> Searching…</> : '🔗 Search LinkedIn profiles'}
+        </button>
+        {profileDomain && (
+          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => goToEmail(profileDomain)}>
+            ✉ Hunter.io emails
+          </button>
+        )}
+        <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => { setShowAdd(true); setAddForm({ name: '', title: '', linkedin: '', notes: '' }) }}>
+          + Add manually
+        </button>
+      </div>
+
+      {/* LinkedIn results */}
+      {liLoading && (
+        <div style={{ fontSize: 12, color: '#6b7280', padding: '8px 0' }}>Searching Google for {profile.name} LinkedIn profiles...</div>
+      )}
+
+      {searched && liResults.length === 0 && (
+        <div style={{ fontSize: 12, color: '#9ca3af', padding: '8px 0' }}>
+          No LinkedIn profiles found via Google. Try Hunter.io for emails or add contacts manually.
+        </div>
+      )}
+
+      {liResults.length > 0 && (
+        <div style={{ marginBottom: showAdd ? 12 : 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+            LinkedIn profiles found ({liResults.length})
+          </div>
+          {liResults.map((r, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < liResults.length - 1 ? '0.5px solid #e5e5e5' : 'none' }}>
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: '#e1f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>
+                {r.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
               </div>
-              {profileDomain ? (
-                <button className="btn btn-primary btn-sm" onClick={() => goToEmail(profileDomain)}>
-                  ✉ Find {profile.name} emails →
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1f2937' }}>{r.name}</div>
+                {r.title && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{r.title.slice(0, 70)}</div>}
+              </div>
+              <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: 10 }}
+                >
+                  View →
+                </a>
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ fontSize: 10 }}
+                  onClick={() => prefillFromLI(r)}
+                >
+                  + Add
                 </button>
-              ) : (
-                <button className="btn btn-secondary btn-sm" onClick={() => goToEmail(profile.name)}>
-                  ✉ Search on Hunter.io →
-                </button>
-              )}
+              </div>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* Manual add / pre-filled from LinkedIn */}
+      {showAdd && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #9FE1CB' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#0F6E56', marginBottom: 10 }}>
+            {addForm.linkedin ? 'Add from LinkedIn' : 'Add contact manually'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input className="form-input" style={{ fontSize: 12 }} placeholder="Full name *" value={addForm.name} onChange={e => setF('name', e.target.value)} />
+            <input className="form-input" style={{ fontSize: 12 }} placeholder="Title / role" value={addForm.title} onChange={e => setF('title', e.target.value)} />
+            <input className="form-input" style={{ fontSize: 12 }} placeholder="LinkedIn URL" value={addForm.linkedin} onChange={e => setF('linkedin', e.target.value)} />
+            <input className="form-input" style={{ fontSize: 12 }} placeholder="Notes (why relevant, influence level...)" value={addForm.notes} onChange={e => setF('notes', e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+            <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => setShowAdd(false)}>Cancel</button>
+            <div style={{ fontSize: 11, color: '#9ca3af', flex: 1, display: 'flex', alignItems: 'center' }}>
+              Save this lead first — then add contacts inside the lead detail
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: '#0F6E56', marginTop: 8, background: '#e1f5ee', borderRadius: 6, padding: '6px 10px' }}>
+            💡 Save {profile.name} as a lead (button above) then go to <strong>Contacts</strong> tab to add this person permanently.
           </div>
         </div>
       )}
