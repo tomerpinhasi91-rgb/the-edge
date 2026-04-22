@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
 import { callAI, serperSearch, tavilySearch, hunterSearch, extractJSON } from '../lib/ai'
@@ -6,20 +6,86 @@ import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, del
 import { initials, cleanDomain } from '../lib/helpers'
 import Spinner from '../components/ui/Spinner'
 
+// ── PWA Install Banner ───────────────────────────────────────────
+function PWABanner() {
+  const [prompt, setPrompt] = useState(null)
+  const [dismissed, setDismissed] = useState(false)
+  const [isIOS, setIsIOS] = useState(false)
+  const [showIOSGuide, setShowIOSGuide] = useState(false)
+
+  useEffect(() => {
+    const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase()) && !window.MSStream
+    const standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches
+    if (standalone) return // already installed
+    if (ios) { setIsIOS(true); return }
+    const handler = (e) => { e.preventDefault(); setPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  if (dismissed) return null
+  if (!prompt && !isIOS) return null
+
+  const install = async () => {
+    if (!prompt) return
+    prompt.prompt()
+    const { outcome } = await prompt.userChoice
+    if (outcome === 'accepted') setDismissed(true)
+    setPrompt(null)
+  }
+
+  return (
+    <div style={{ background: '#0d2b1e', color: 'white', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#0F6E56', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>te</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>Install the edge</div>
+        <div style={{ fontSize: 11, color: '#9FE1CB' }}>
+          {isIOS ? 'Tap Share then "Add to Home Screen"' : 'Add to your home screen for quick access'}
+        </div>
+      </div>
+      {isIOS ? (
+        <button style={{ background: '#1D9E75', border: 'none', color: 'white', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+          onClick={() => setShowIOSGuide(!showIOSGuide)}>
+          How?
+        </button>
+      ) : (
+        <button style={{ background: '#1D9E75', border: 'none', color: 'white', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+          onClick={install}>
+          Install
+        </button>
+      )}
+      <button style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px' }}
+        onClick={() => setDismissed(true)}>×</button>
+      {showIOSGuide && (
+        <div style={{ width: '100%', fontSize: 12, color: '#9FE1CB', paddingTop: 8, borderTop: '0.5px solid #1D4A34', lineHeight: 1.8 }}>
+          1. Tap the <strong style={{ color: 'white' }}>Share</strong> button (box with arrow) in Safari<br />
+          2. Scroll down and tap <strong style={{ color: 'white' }}>"Add to Home Screen"</strong><br />
+          3. Tap <strong style={{ color: 'white' }}>Add</strong> — done! 🎉
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function LeadRoomView({ setView, setActiveId }) {
   const { user, leads, saveAccount, deleteAccount, showToast } = useApp()
   const [tab, setTab] = useState('prospect')
   const [researchQuery, setResearchQuery] = useState('')
+  const [emailQuery, setEmailQuery] = useState('')
 
   const TABS = [
     { key: 'prospect', label: '🎯 Prospect finder' },
     { key: 'research', label: '🔍 Company research' },
     { key: 'email', label: '✉ Email finder' },
-    { key: 'saved', label: `📋 Saved leads${leads.length > 0 ? ' (' + leads.length + ')' : ''}` },
+    { key: 'saved', label: 'Saved (' + leads.length + ')' },
   ]
+
+  const goToEmail = (domain) => { setEmailQuery(domain); setTab('email') }
+  const goToResearch = (name) => { setResearchQuery(name); setTab('research') }
 
   return (
     <>
+      <PWABanner />
       <div className="topbar">
         <div style={{ fontSize: 17, fontWeight: 600 }}>Lead Room</div>
         <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setTab('saved')}>
@@ -27,19 +93,20 @@ export default function LeadRoomView({ setView, setActiveId }) {
         </button>
       </div>
       <div className="tabs">
-        {TABS.map(t => <button key={t.key} className={`tab-btn${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>{t.label}</button>)}
+        {TABS.map(t => <button key={t.key} className={'tab-btn' + (tab === t.key ? ' active' : '')} onClick={() => setTab(t.key)}>{t.label}</button>)}
       </div>
       <div className="main-content">
-        {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} setTab={setTab} setResearchQuery={setResearchQuery} />}
-        {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} setTab={setTab} initialQuery={researchQuery} />}
-        {tab === 'email' && <EmailFinder user={user} saveAccount={saveAccount} showToast={showToast} leads={leads} />}
+        {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} goToResearch={goToResearch} goToEmail={goToEmail} />}
+        {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} goToEmail={goToEmail} initialQuery={researchQuery} />}
+        {tab === 'email' && <EmailFinder user={user} saveAccount={saveAccount} showToast={showToast} leads={leads} initialQuery={emailQuery} />}
         {tab === 'saved' && <SavedLeads leads={leads} deleteAccount={deleteAccount} setActiveId={setActiveId} setView={setView} showToast={showToast} />}
       </div>
     </>
   )
 }
 
-function ProspectFinder({ user, showToast, setTab, setResearchQuery }) {
+// ── Prospect Finder ──────────────────────────────────────────────
+function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
   const [category, setCategory] = useState('')
   const [location, setLocation] = useState('Australia')
   const [loading, setLoading] = useState(false)
@@ -57,7 +124,7 @@ function ProspectFinder({ user, showToast, setTab, setResearchQuery }) {
     if (isDemoUser(user)) {
       await delay(1500)
       setProspects(DEMO_PROSPECTS)
-      setStatus(`Found ${DEMO_PROSPECTS.length} companies matching "${cat}" in ${loc}`)
+      setStatus('Found ' + DEMO_PROSPECTS.length + ' companies matching "' + cat + '" in ' + loc)
       setLoading(false); return
     }
 
@@ -67,7 +134,10 @@ function ProspectFinder({ user, showToast, setTab, setResearchQuery }) {
       const organic2 = r2.status === 'fulfilled' ? (r2.value.organic || []) : []
       const kg = r1.status === 'fulfilled' ? r1.value.knowledgeGraph : null
       const seen = new Set(); const found = []
-      if (kg && kg.title && !seen.has(kg.title.toLowerCase())) { seen.add(kg.title.toLowerCase()); found.push({ name: kg.title, description: kg.description || '', website: kg.website || '', type: kg.type || '' }) }
+      if (kg && kg.title && !seen.has(kg.title.toLowerCase())) {
+        seen.add(kg.title.toLowerCase())
+        found.push({ name: kg.title, description: kg.description || '', website: kg.website || '', type: kg.type || '' })
+      }
       const SKIP = ['linkedin.com', 'yellowpages.com.au', 'truelocal.com.au', 'yelp.com', 'facebook.com', 'wikipedia.org', 'seek.com.au']
       ;[...organic1, ...organic2].forEach(r => {
         try {
@@ -80,7 +150,7 @@ function ProspectFinder({ user, showToast, setTab, setResearchQuery }) {
         } catch (e) {}
       })
       setProspects(found.slice(0, 12))
-      setStatus(found.length > 0 ? `Found ${Math.min(found.length, 12)} companies matching "${cat}" in ${loc}` : 'No companies found — try different keywords')
+      setStatus(found.length > 0 ? 'Found ' + Math.min(found.length, 12) + ' companies matching "' + cat + '" in ' + loc : 'No companies found — try different keywords')
     } catch (e) { setStatus('Search failed: ' + e.message); showToast(e.message, 'error') }
     setLoading(false)
   }
@@ -89,8 +159,8 @@ function ProspectFinder({ user, showToast, setTab, setResearchQuery }) {
     <div>
       <div className="ai-panel" style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>Find companies by industry, product or service — get a list you can research and add to your pipeline</div>
-        <div className="lr-search-row" style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <input className="form-input" style={{ flex: 2 }} placeholder="e.g. potato chip manufacturers, cold storage logistics, organic food distributors..." value={category} onChange={e => setCategory(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <input className="form-input" style={{ flex: 2, minWidth: 160 }} placeholder="e.g. potato chip manufacturers, cold storage logistics..." value={category} onChange={e => setCategory(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
           <input className="form-input" style={{ width: 160 }} placeholder="Location e.g. Adelaide SA" value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} />
           <button className="btn btn-primary" onClick={run} disabled={loading}>{loading ? <><Spinner /> Searching…</> : 'Find companies'}</button>
         </div>
@@ -99,26 +169,31 @@ function ProspectFinder({ user, showToast, setTab, setResearchQuery }) {
         </div>
         {status && <div style={{ fontSize: 12, marginTop: 8, color: prospects.length > 0 ? '#0F6E56' : '#9ca3af' }}>{status}</div>}
       </div>
-      {prospects.map((p, i) => (
-        <div key={i} style={{ background: 'white', border: '0.5px solid #e5e5e5', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: '#e1f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>{initials(p.name)}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{p.name}</div>
-            {p.type && <div style={{ fontSize: 11, color: '#0F6E56', marginBottom: 2 }}>{p.type}</div>}
-            {p.description && <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5 }}>{p.description.slice(0, 160)}{p.description.length > 160 ? '…' : ''}</div>}
-            {p.website && <a href={p.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>{p.website.replace('https://', '')}</a>}
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' }}>
-            <button className="btn btn-primary btn-sm" onClick={() => { setResearchQuery(p.name); setTab('research'); }} style={{ fontSize: 11 }}>🔍 Research</button>
-          </div>
-        </div>
-      ))}
 
+      {prospects.map((p, i) => {
+        const domain = p.website ? p.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : ''
+        return (
+          <div key={i} style={{ background: 'white', border: '0.5px solid #e5e5e5', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#e1f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>{initials(p.name)}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{p.name}</div>
+              {p.type && <div style={{ fontSize: 11, color: '#0F6E56', marginBottom: 2 }}>{p.type}</div>}
+              {p.description && <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5 }}>{p.description.slice(0, 160)}{p.description.length > 160 ? '…' : ''}</div>}
+              {p.website && <a href={p.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>{p.website.replace('https://', '')}</a>}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' }}>
+              <button className="btn btn-primary btn-sm" onClick={() => goToResearch(p.name)} style={{ fontSize: 11 }}>🔍 Research</button>
+              {domain && <button className="btn btn-secondary btn-sm" onClick={() => goToEmail(domain)} style={{ fontSize: 11 }}>✉ Emails</button>}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, setTab, initialQuery }) {
+// ── Company Research ─────────────────────────────────────────────
+function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, goToEmail, initialQuery }) {
   const [query, setQuery] = useState(initialQuery || '')
   const [location, setLocation] = useState('')
   const [loading, setLoading] = useState(false)
@@ -126,16 +201,13 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Auto-run when coming from Prospect Finder
-  useState(() => {
-    if (initialQuery) {
-      setTimeout(() => run(initialQuery, ''), 100)
-    }
-  })
+  useEffect(() => {
+    if (initialQuery) run(initialQuery, '')
+  }, [initialQuery])
 
   const run = async (q, loc) => {
-    const name = (q || query).trim()
-    const place = (loc || location).trim()
+    const name = (q !== undefined ? q : query).trim()
+    const place = (loc !== undefined ? loc : location).trim()
     if (!name) return showToast('Enter a company name', 'error')
     setLoading(true); setProfile(null); setStatus('Searching...')
 
@@ -144,7 +216,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
       const key = getDemoKey(name)
       const match = Object.keys(DEMO_RESEARCH).find(k => key.includes(k) || k.includes(key))
       if (match) { setProfile(DEMO_RESEARCH[match]); setStatus('Found: ' + DEMO_RESEARCH[match].name) }
-      else setStatus(`No demo profile for "${name}" — try Apex Protein Co, BlueCrest Logistics, Summit Packaging or Harvest Ridge Foods`)
+      else setStatus('No demo profile for "' + name + '" — try Apex Protein Co, BlueCrest Logistics, Summit Packaging or Harvest Ridge Foods')
       setLoading(false); return
     }
 
@@ -154,17 +226,24 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
       let context = ''
       if (serper.status === 'fulfilled') {
         const organic = serper.value.organic || [], news = serper.value.news || [], kg = serper.value.knowledgeGraph
-        if (kg) context += `KNOWLEDGE GRAPH: ${kg.title} — ${kg.description || ''}\n\n`
-        if (organic.length) context += 'WEB:\n' + organic.slice(0, 5).map(r => `${r.title}: ${(r.snippet || '').slice(0, 300)}\nURL: ${r.link}`).join('\n\n') + '\n\n'
-        if (news.length) context += 'NEWS:\n' + news.slice(0, 4).map(n => `${n.title} (${n.date || 'recent'}): ${n.snippet}\nURL: ${n.link}`).join('\n\n')
+        if (kg) context += 'KNOWLEDGE GRAPH: ' + kg.title + ' — ' + (kg.description || '') + '\n\n'
+        if (organic.length) context += 'WEB:\n' + organic.slice(0, 5).map(r => r.title + ': ' + (r.snippet || '').slice(0, 300) + '\nURL: ' + r.link).join('\n\n') + '\n\n'
+        if (news.length) context += 'NEWS:\n' + news.slice(0, 4).map(n => n.title + ' (' + (n.date || 'recent') + '): ' + n.snippet + '\nURL: ' + n.link).join('\n\n')
       }
       if (tavily.status === 'fulfilled') context += '\n\nADDITIONAL:\n' + (tavily.value.results || []).slice(0, 3).map(r => r.title + ': ' + (r.content || '').slice(0, 300)).join('\n\n')
 
-      const prompt = `You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "${name}". Return ONLY a valid JSON object (no markdown): {"name":string,"industry":string,"location":string,"size":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"contacts":[{"name":string,"title":string,"linkedin":string,"why_relevant":string}],"talking_points":[string,string,string]}.`
+      const prompt = 'You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "' + name + '". Return ONLY a valid JSON object (no markdown): {"name":string,"industry":string,"location":string,"size":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"contacts":[{"name":string,"title":string,"linkedin":string,"why_relevant":string}],"talking_points":[string,string,string]}. For contacts, only include real named individuals if you can find them — do NOT include entries with name "Unknown".'
       const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1200, false)
       const parsed = extractJSON(result)
-      if (parsed && parsed.name) { setProfile(parsed); setStatus('Found: ' + parsed.name) }
-      else { setStatus('Could not build profile — try a more specific search'); }
+      if (parsed && parsed.name) {
+        // Filter out Unknown contacts before setting
+        if (parsed.contacts) {
+          parsed.contacts = parsed.contacts.filter(c => c.name && !c.name.toLowerCase().includes('unknown') && c.name.trim().length > 2)
+        }
+        setProfile(parsed); setStatus('Found: ' + parsed.name)
+      } else {
+        setStatus('Could not build profile — try a more specific search')
+      }
     } catch (e) { showToast(e.message, 'error'); setStatus('Search failed') }
     setLoading(false)
   }
@@ -173,8 +252,14 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
     if (!profile || !saveAccount) return
     setSaving(true)
     try {
-      const lead = { ...profile, id: uid(), _type: 'lead', savedAt: new Date().toISOString().split('T')[0], signals: (profile.signals || []).map(s => ({ ...s, id: uid(), date: new Date().toISOString().split('T')[0] })), contacts: (profile.contacts || []).map(c => ({ ...c, id: uid() })), activities: [], checklist: [], coach_sessions: [] }
-      const dbId = await saveAccount(lead)
+      const lead = {
+        ...profile, id: uid(), _type: 'lead',
+        savedAt: new Date().toISOString().split('T')[0],
+        signals: (profile.signals || []).map(s => ({ ...s, id: uid(), date: new Date().toISOString().split('T')[0] })),
+        contacts: (profile.contacts || []).map(c => ({ ...c, id: uid() })),
+        activities: [], checklist: [], coach_sessions: []
+      }
+      await saveAccount(lead)
       showToast(profile.name + ' saved as lead', 'success')
       if (setActiveId) setActiveId(lead.id)
       if (setView) setView('lead')
@@ -184,25 +269,26 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
 
   const HISTORY = ['Maggie Beer Holdings', 'Sundrop Farms', 'SA Potato Co', 'Beston Global']
 
+  // Extract domain from profile website for Hunter button
+  const profileDomain = profile?.website ? profile.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : ''
+
   return (
     <div>
-      {(
-        <div className="ai-panel" style={{ marginBottom: 16 }}>
-          <div className="lr-search-row" style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input className="form-input" style={{ flex: 1 }} placeholder="Company name e.g. Maggie Beer, Sundrop Farms..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
-            <input className="form-input" style={{ width: 140 }} placeholder="Location e.g. SA, WA" value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} />
-            <button className="btn btn-primary" onClick={() => run()} disabled={loading}>{loading ? <><Spinner /> Researching…</> : 'Research'}</button>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {HISTORY.map((h, i) => <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => { setQuery(h); run(h) }}>{h}</button>)}
-          </div>
-          {status && <div style={{ fontSize: 12, marginTop: 8, color: profile ? '#0F6E56' : '#9ca3af' }}>{status}</div>}
+      <div className="ai-panel" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <input className="form-input" style={{ flex: 1, minWidth: 140 }} placeholder="Company name e.g. Maggie Beer, Sundrop Farms..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
+          <input className="form-input" style={{ width: 140 }} placeholder="Location e.g. SA, WA" value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} />
+          <button className="btn btn-primary" onClick={() => run()} disabled={loading}>{loading ? <><Spinner /> Researching…</> : 'Research'}</button>
         </div>
-      )}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {HISTORY.map((h, i) => <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => { setQuery(h); run(h) }}>{h}</button>)}
+        </div>
+        {status && <div style={{ fontSize: 12, marginTop: 8, color: profile ? '#0F6E56' : '#9ca3af' }}>{status}</div>}
+      </div>
 
       {loading && !profile && (
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '40px 20px', color: '#6b7280', fontSize: 13 }}>
-          <Spinner dark /> Researching {query || initialQuery}...
+          <Spinner /> Researching {query || initialQuery}...
         </div>
       )}
 
@@ -210,15 +296,20 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
         <div>
           {/* Profile header */}
           <div className="card" style={{ marginBottom: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{profile.name}</div>
                 <div style={{ fontSize: 13, color: '#6b7280' }}>{[profile.industry, profile.location, profile.size].filter(Boolean).join(' · ')}</div>
                 {profile.website && <a href={profile.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#185FA5', display: 'block', marginTop: 4 }}>{profile.website}</a>}
               </div>
-              {saveAccount && (
-                <button className="btn btn-primary" onClick={saveLead} disabled={saving}>{saving ? 'Saving...' : '+ Save as lead'}</button>
-              )}
+              <div style={{ display: 'flex', gap: 6, flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
+                {saveAccount && (
+                  <button className="btn btn-primary btn-sm" onClick={saveLead} disabled={saving}>{saving ? 'Saving...' : '+ Save as lead'}</button>
+                )}
+                {profileDomain && (
+                  <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => goToEmail(profileDomain)}>✉ Find emails</button>
+                )}
+              </div>
             </div>
             {profile.description && <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #f3f3f3' }}>{profile.description}</div>}
           </div>
@@ -228,7 +319,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
             <div className="card" style={{ marginBottom: 12 }}>
               <div className="card-title">Key signals</div>
               {(profile.signals || []).map((s, i) => (
-                <div key={i} className={`signal-card ${s.priority}`} style={{ marginBottom: 8 }}>
+                <div key={i} className={'signal-card ' + s.priority} style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: s.priority === 'urgent' ? '#A32D2D' : s.priority === 'watch' ? '#BA7517' : s.priority === 'grant' ? '#0F6E56' : '#185FA5' }}>{s.title}</div>
                   <div style={{ fontSize: 12, color: '#374151', margin: '4px 0' }}>{s.body}</div>
                   <div style={{ fontSize: 12, color: '#0F6E56', fontWeight: 500 }}>→ {s.action}</div>
@@ -239,13 +330,18 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
 
           {/* Contacts + Talking points */}
           <div className="grid-2">
-            {(profile.contacts || []).length > 0 && (
+            {(profile.contacts || []).length > 0 ? (
               <div className="card">
-                <div className="card-title">Key contacts</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div className="card-title" style={{ margin: 0 }}>Key contacts</div>
+                  {profileDomain && (
+                    <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => goToEmail(profileDomain)}>✉ Find emails</button>
+                  )}
+                </div>
                 {(profile.contacts || []).map((c, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: i < profile.contacts.length - 1 ? '0.5px solid #f3f3f3' : 'none' }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, background: '#e1f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>{initials(c.name)}</div>
-                    <div style={{ minWidth: 0 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
                       <div style={{ fontSize: 11, color: '#6b7280' }}>{c.title}</div>
                       {c.why_relevant && <div style={{ fontSize: 11, color: '#374151', marginTop: 2 }}>{c.why_relevant}</div>}
@@ -254,7 +350,19 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
                   </div>
                 ))}
               </div>
+            ) : (
+              /* No named contacts found — show email finder prompt instead */
+              <div className="card" style={{ background: '#f9f9f9' }}>
+                <div className="card-title">Key contacts</div>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 10 }}>No named contacts found in public data.</div>
+                {profileDomain && (
+                  <button className="btn btn-secondary btn-sm" onClick={() => goToEmail(profileDomain)}>
+                    ✉ Search emails on Hunter.io →
+                  </button>
+                )}
+              </div>
             )}
+
             {(profile.talking_points || []).length > 0 && (
               <div className="card">
                 <div className="card-title">Talking points</div>
@@ -273,16 +381,22 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, s
   )
 }
 
-function EmailFinder({ user, saveAccount, showToast, leads }) {
-  const [query, setQuery] = useState('')
+// ── Email Finder ─────────────────────────────────────────────────
+function EmailFinder({ user, saveAccount, showToast, leads, initialQuery }) {
+  const [query, setQuery] = useState(initialQuery || '')
   const [loading, setLoading] = useState(false)
   const [emails, setEmails] = useState([])
   const [org, setOrg] = useState('')
   const [pattern, setPattern] = useState('')
   const [status, setStatus] = useState('')
 
+  // Auto-run when pre-filled from Research or Prospect Finder
+  useEffect(() => {
+    if (initialQuery) { setQuery(initialQuery); run(initialQuery) }
+  }, [initialQuery])
+
   const run = async (q) => {
-    const searchQ = (q || query).trim()
+    const searchQ = (q !== undefined ? q : query).trim()
     if (!searchQ) return showToast('Enter a company domain or name', 'error')
     setLoading(true); setEmails([]); setOrg(''); setPattern(''); setStatus('Searching Hunter.io...')
 
@@ -290,15 +404,17 @@ function EmailFinder({ user, saveAccount, showToast, leads }) {
       await delay(900)
       const key = getDemoKey(searchQ)
       const match = Object.keys(DEMO_EMAILS).find(k => key.includes(k) || k.includes(key) || searchQ.includes(k.split(' ')[0]))
-      if (match) { const d = DEMO_EMAILS[match]; setEmails(d.emails); setPattern(d.pattern); setOrg(d.org); setStatus(d.emails.length + ' verified emails found') }
-      else setStatus('No demo emails for this company — try BlueCrest, Apex, Summit or Harvest Ridge')
+      if (match) {
+        const d = DEMO_EMAILS[match]
+        setEmails(d.emails); setPattern(d.pattern); setOrg(d.org); setStatus(d.emails.length + ' verified emails found')
+      } else setStatus('No demo emails for this company — try BlueCrest, Apex, Summit or Harvest Ridge')
       setLoading(false); return
     }
 
     try {
       const data = await hunterSearch(searchQ)
       setEmails(data.emails || []); setOrg(data.organization || ''); setPattern(data.pattern || '')
-      setStatus(data.emails?.length > 0 ? `${data.emails.length} emails found for ${data.organization || searchQ}` : 'No emails found — try the company domain instead')
+      setStatus(data.emails?.length > 0 ? data.emails.length + ' emails found for ' + (data.organization || searchQ) : 'No emails found — try the company domain (e.g. company.com.au)')
     } catch (e) { showToast(e.message, 'error'); setStatus('Search failed') }
     setLoading(false)
   }
@@ -306,10 +422,10 @@ function EmailFinder({ user, saveAccount, showToast, leads }) {
   const addContact = async (email, leadId) => {
     const lead = leads.find(l => l.id === leadId)
     if (!lead) return showToast('Select a lead to add to', 'error')
-    const contact = { id: uid(), name: `${email.first_name} ${email.last_name}`, title: email.position || '', role: 'Influencer', email: email.value, emailConfidence: email.confidence, linkedin: email.linkedin_url || '', notes: '' }
+    const contact = { id: uid(), name: email.first_name + ' ' + email.last_name, title: email.position || '', role: 'Influencer', email: email.value, emailConfidence: email.confidence, linkedin: email.linkedin_url || '', notes: '' }
     const contacts = [...(lead.contacts || []).filter(c => c.email !== email.value), contact]
     await saveAccount({ ...lead, contacts })
-    showToast(`${contact.name} added to ${lead.name}`, 'success')
+    showToast(contact.name + ' added to ' + lead.name, 'success')
   }
 
   const CONF_COLOR = (n) => n >= 90 ? '#0F6E56' : n >= 70 ? '#BA7517' : '#A32D2D'
@@ -317,7 +433,7 @@ function EmailFinder({ user, saveAccount, showToast, leads }) {
   return (
     <div>
       <div className="ai-panel" style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>Hunter.io Email Finder — verified business emails with confidence score</div>
+        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>Hunter.io — verified business emails with confidence score</div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input className="form-input" style={{ flex: 1 }} placeholder="Company domain e.g. maggiebeer.com.au or company name" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
           <button className="btn btn-primary" onClick={() => run()} disabled={loading}>{loading ? <><Spinner /> Searching…</> : 'Find emails'}</button>
@@ -325,6 +441,12 @@ function EmailFinder({ user, saveAccount, showToast, leads }) {
         {status && <div style={{ fontSize: 12, marginTop: 8, color: emails.length > 0 ? '#0F6E56' : '#9ca3af' }}>{status}</div>}
         {pattern && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Email pattern: {pattern}</div>}
       </div>
+
+      {loading && (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '40px 20px', color: '#6b7280', fontSize: 13 }}>
+          <Spinner /> Searching Hunter.io for {query}...
+        </div>
+      )}
 
       {emails.map((e, i) => (
         <div key={i} style={{ background: 'white', border: '0.5px solid #e5e5e5', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -334,21 +456,29 @@ function EmailFinder({ user, saveAccount, showToast, leads }) {
             {e.position && <div style={{ fontSize: 11, color: '#6b7280' }}>{e.position}</div>}
             <div style={{ fontSize: 12, color: '#185FA5', marginTop: 2 }}>{e.value}</div>
           </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: CONF_COLOR(e.confidence) }}>{e.confidence}%</span>
-            <a href={`mailto:${e.value}`} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}>Email</a>
+            <a href={'mailto:' + e.value} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}>✉ Email</a>
             {e.linkedin_url && <a href={e.linkedin_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}>LinkedIn</a>}
           </div>
         </div>
       ))}
+
+      {!loading && emails.length === 0 && status && status.includes('No emails') && (
+        <div style={{ textAlign: 'center', padding: '30px 20px', color: '#9ca3af', fontSize: 13 }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>📭</div>
+          No emails found. Try the exact company domain (e.g. <strong>company.com.au</strong>)
+        </div>
+      )}
     </div>
   )
 }
 
+// ── Saved Leads ──────────────────────────────────────────────────
 function SavedLeads({ leads, deleteAccount, setActiveId, setView, showToast }) {
   const openLead = (lead) => { setActiveId(lead.id); setView('lead') }
   const removeLead = async (lead) => {
-    if (!window.confirm(`Remove ${lead.name}?`)) return
+    if (!window.confirm('Remove ' + lead.name + '?')) return
     await deleteAccount(lead._dbId)
     showToast('Lead removed', 'success')
   }
@@ -371,7 +501,7 @@ function SavedLeads({ leads, deleteAccount, setActiveId, setView, showToast }) {
             {l.why && <div style={{ fontSize: 12, color: '#374151', marginTop: 4 }}>{l.why.slice(0, 100)}{l.why.length > 100 ? '...' : ''}</div>}
             {(l.signals || []).length > 0 && (
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-                {(l.signals || []).slice(0, 3).map((s, i) => <span key={i} className={`badge badge-${s.priority}`}>{s.title?.slice(0, 40)}</span>)}
+                {(l.signals || []).slice(0, 3).map((s, i) => <span key={i} className={'badge badge-' + s.priority}>{(s.title || '').slice(0, 40)}</span>)}
               </div>
             )}
           </div>
