@@ -15,10 +15,18 @@ export default function NewAccountView({ onSave, onCancel }) {
     if (!form.name.trim()) return showToast('Company name is required', 'error')
     setSaving(true)
     try {
-      const account = { ...form, id: uid(), _type: 'account', signals: [], contacts: [], activities: [], checklist: [], queries: [], coach_sessions: [], createdAt: new Date().toISOString() }
+      const accountId = uid()
+      const account = {
+        ...form,
+        id: accountId,
+        _type: 'account',
+        signals: [], contacts: [], activities: [],
+        checklist: [], queries: [], coach_sessions: [],
+        createdAt: new Date().toISOString()
+      }
       await saveAccount(account)
-      showToast(`${form.name} added`, 'success')
-      onSave(account.id)
+      showToast(form.name + ' added', 'success')
+      onSave(accountId) // ✅ Fixed: was onSave(form.id) — form has no id field
     } catch (e) {
       showToast(e.message, 'error')
     }
