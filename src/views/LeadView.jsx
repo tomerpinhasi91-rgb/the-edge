@@ -3,7 +3,7 @@ import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
 import { callAI, serperSearch, tavilySearch, extractSignals } from '../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_SWEEPS, DEMO_COACH, delay } from '../lib/demo'
-import { initials, PRIORITY_COLORS, PRIORITY_BG } from '../lib/helpers'
+import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext } from '../lib/helpers'
 import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
 
@@ -435,7 +435,11 @@ function LeadCoach({ lead, save, user, showToast }) {
       setLoading(false); return
     }
     try {
-      const result = await callAI('You are an elite B2B sales coach helping a rep win this lead. Use all context provided. Be specific, direct and actionable.', [{ role: 'user', content: 'LEAD CONTEXT:\n' + buildContext() + '\n\nCOACHING REQUEST: ' + q }], 800)
+      const { repName, repCtx } = buildRepContext(loadProfile(user?.id))
+      let systemPrompt = 'You are an elite B2B sales coach helping a rep win this lead. Use all context provided. Be specific, direct and actionable.'
+      if (repCtx) systemPrompt += '\n\nREP PROFILE: ' + repCtx
+      if (repName) systemPrompt += ' When writing emails or call scripts, always sign off as ' + repName + '.'
+      const result = await callAI(systemPrompt, [{ role: 'user', content: 'LEAD CONTEXT:\n' + buildContext() + '\n\nCOACHING REQUEST: ' + q }], 900)
       const newSession = { id: uid(), date: new Date().toISOString().split('T')[0], prompt: q, response: result }
       await save({ coach_sessions: [...sessions, newSession] })
       setOutput(result); setPrompt(''); showToast('Coach response saved', 'success')

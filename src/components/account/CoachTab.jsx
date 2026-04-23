@@ -3,6 +3,7 @@ import { useApp } from '../../lib/context'
 import { uid } from '../../lib/supabase'
 import { callAI } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_COACH, delay } from '../../lib/demo'
+import { loadProfile, buildRepContext } from '../../lib/helpers'
 import Spinner from '../ui/Spinner'
 
 export default function CoachTab({ account }) {
@@ -13,18 +14,25 @@ export default function CoachTab({ account }) {
   const sessions = account.coach_sessions || []
 
   const buildContext = () => {
-    const contacts = (account.contacts || []).slice(0, 4).map(c => `${c.name} (${c.role})`).join(', ')
-    const signals = [...(account.signals || [])].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 3).map(s => s.title).join('; ')
-    return `Account: ${account.name}
-Industry: ${account.industry || ''}
-Location: ${account.location || ''}
-Stage: ${account.stage || ''}
-Opportunity: ${account.opportunity || ''}
-Deal value: ${account.dealValue ? '$' + account.dealValue : 'unknown'}
-Competitors: ${account.competitors || 'unknown'}
-Strategy: ${account.strategy || ''}
-Key contacts: ${contacts}
-Latest signals: ${signals}`
+    const contacts = (account.contacts || []).slice(0, 5).map(c => c.name + (c.title ? ', ' + c.title : '') + ' (' + (c.role || 'contact') + ')' + (c.email ? ' <' + c.email + '>' : '')).join('; ')
+    const signals = [...(account.signals || [])].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 4).map(s => '[' + s.priority + '] ' + s.title + ': ' + s.body).join(' | ')
+    const recentActs = [...(account.activities || [])].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 4).map(a => '- [' + a.type + '] ' + a.title + ' (' + a.date + ')' + (a.notes ? ': ' + a.notes : '') + (a.next ? ' → Next: ' + a.next : '')).join('\n')
+    let ctx = 'Account: ' + account.name + '\n' +
+      'Industry: ' + (account.industry || '') + '\n' +
+      'Location: ' + (account.location || '') + '\n' +
+      'Stage: ' + (account.stage || '') + '\n' +
+      'Risk: ' + (account.risk || '') + '\n' +
+      'Opportunity: ' + (account.opportunity || '') + '\n' +
+      'Deal value: ' + (account.dealValue ? '$' + account.dealValue : 'unknown') + '\n' +
+      'Timeline: ' + (account.timeline || 'not set') + '\n' +
+      'Next meeting: ' + (account.nextMeeting || 'not set') + '\n' +
+      'Competitors: ' + (account.competitors || 'unknown') + '\n' +
+      'Win strategy: ' + (account.strategy || 'not set') + '\n' +
+      (account.description ? 'Background: ' + account.description + '\n' : '') +
+      'Key contacts: ' + (contacts || 'none') + '\n' +
+      'Latest signals: ' + (signals || 'none')
+    if (recentActs) ctx += '\nRecent activity:\n' + recentActs
+    return ctx
   }
 
   const run = async (p) => {
@@ -52,10 +60,14 @@ Latest signals: ${signals}`
     }
 
     try {
+      const { repName, repCtx } = buildRepContext(loadProfile(user?.id))
+      let systemPrompt = 'You are an elite B2B sales coach. Give specific, actionable, deal-specific coaching. Use all account context provided. Be direct, practical and concise.'
+      if (repCtx) systemPrompt += '\n\nREP PROFILE: ' + repCtx
+      if (repName) systemPrompt += ' When writing emails or call scripts, always sign off as ' + repName + '.'
       const result = await callAI(
-        'You are an elite B2B sales coach. Give specific, actionable, deal-specific coaching. Use all account context provided. Be direct, practical and concise.',
-        [{ role: 'user', content: `ACCOUNT CONTEXT:\n${buildContext()}\n\nCOACHING REQUEST: ${q}` }],
-        800
+        systemPrompt,
+        [{ role: 'user', content: 'ACCOUNT CONTEXT:\n' + buildContext() + '\n\nCOACHING REQUEST: ' + q }],
+        900
       )
       const newSession = { id: uid(), date: new Date().toISOString().split('T')[0], prompt: q, response: result }
       await saveAccount({ ...account, coach_sessions: [...sessions, newSession] })

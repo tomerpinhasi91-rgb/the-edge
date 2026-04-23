@@ -3,6 +3,7 @@ import { useApp } from '../../lib/context'
 import { uid } from '../../lib/supabase'
 import { callAI } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_COACH, delay } from '../../lib/demo'
+import { loadProfile, buildRepContext } from '../../lib/helpers'
 import Modal from '../ui/Modal'
 import Spinner from '../ui/Spinner'
 
@@ -101,7 +102,10 @@ export default function ActivitiesTab({ account }) {
     }
 
     try {
-      const systemPrompt = 'You are an elite B2B sales coach and strategist. Use all deal context provided. Be specific, direct, and immediately actionable. Output clean formatted text — no unnecessary preamble.'
+      const { repName, repCtx } = buildRepContext(loadProfile(user?.id))
+      let systemPrompt = 'You are an elite B2B sales coach and strategist. Use all deal context provided. Be specific, direct, and immediately actionable. Output clean formatted text — no unnecessary preamble.'
+      if (repCtx) systemPrompt += '\n\nREP PROFILE: ' + repCtx
+      if (repName) systemPrompt += ' When writing emails, always sign off as ' + repName + '.'
       const result = await callAI(systemPrompt, [{ role: 'user', content: action.prompt(account, recent) }], 900)
       setAiOutput(result)
     } catch (e) {

@@ -2,23 +2,13 @@ import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { sb } from '../lib/supabase'
 import { getTokenStats } from '../lib/ai'
-import { initials } from '../lib/helpers'
+import { initials, loadProfile } from '../lib/helpers'
 
 const DEAL_SIZES = ['Under $10K', '$10K–$50K', '$50K–$150K', '$150K–$500K', '$500K+']
 const SALES_CYCLES = ['Under 1 month', '1–3 months', '3–6 months', '6–12 months', '12+ months']
 
-const PROFILE_KEY = (userId) => 'te_profile_' + userId
-
-export const loadProfile = (userId) => {
-  if (!userId) return null
-  try {
-    const raw = localStorage.getItem(PROFILE_KEY(userId))
-    return raw ? JSON.parse(raw) : null
-  } catch (e) { return null }
-}
-
 const saveProfileToStorage = (userId, profile) => {
-  try { localStorage.setItem(PROFILE_KEY(userId), JSON.stringify(profile)) } catch (e) {}
+  try { localStorage.setItem('te_profile_' + userId, JSON.stringify(profile)) } catch (e) {}
 }
 
 const EMPTY_PROFILE = {

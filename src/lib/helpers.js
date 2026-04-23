@@ -41,3 +41,26 @@ export const PRIORITY_COLORS = {
 export const PRIORITY_BG = {
   urgent: '#FCEBEB', watch: '#FAEEDA', intel: '#E6F1FB', grant: '#E1F5EE'
 }
+
+export const loadProfile = (userId) => {
+  if (!userId) return null
+  try {
+    const raw = localStorage.getItem('te_profile_' + userId)
+    return raw ? JSON.parse(raw) : null
+  } catch (e) { return null }
+}
+
+export const buildRepContext = (profile) => {
+  if (!profile) return { repName: '', repCtx: '' }
+  const repName = [profile.firstName, profile.lastName].filter(Boolean).join(' ')
+  const parts = [
+    repName ? 'Rep: ' + repName : '',
+    profile.jobTitle ? 'Role: ' + profile.jobTitle : '',
+    profile.company ? 'Company: ' + profile.company : '',
+    profile.whatYouSell ? 'Sells: ' + profile.whatYouSell : '',
+    profile.typicalDealSize ? 'Typical deal: ' + profile.typicalDealSize : '',
+    profile.averageSalesCycle ? 'Sales cycle: ' + profile.averageSalesCycle : '',
+    profile.territory ? 'Territory: ' + profile.territory : '',
+  ].filter(Boolean)
+  return { repName, repCtx: parts.join(' | ') }
+}
