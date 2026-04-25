@@ -260,13 +260,14 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       const searchQuery = name + ' ' + place + ' company Australia 2026'
       const liQuery = '"' + name + '" site:linkedin.com/in'
 
-      // Run web research + LinkedIn people search in parallel
+      // Run web research + LinkedIn people search in parallel (LinkedIn kept separate from AI context)
       const [serper, tavily, liSerper] = await Promise.allSettled([
         serperSearch(searchQuery),
         tavilySearch(searchQuery, 5),
         serperSearch(liQuery)
       ])
 
+      // Build AI context from web data only (keeping it clean and focused)
       let context = ''
       if (serper.status === 'fulfilled') {
         const organic = serper.value.organic || [], news = serper.value.news || [], kg = serper.value.knowledgeGraph
@@ -276,11 +277,10 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       }
       if (tavily.status === 'fulfilled') context += '\n\nADDITIONAL:\n' + (tavily.value.results || []).slice(0, 3).map(r => r.title + ': ' + (r.content || '').slice(0, 300)).join('\n\n')
 
-      // Parse LinkedIn results for fallback stakeholders
+      // Parse LinkedIn results independently for fallback
       let liStakeholders = []
       if (liSerper.status === 'fulfilled') {
-        const liOrganic = liSerper.value.organic || []
-        liStakeholders = liOrganic
+        liStakeholders = (liSerper.value.organic || [])
           .filter(r => r.link && r.link.includes('linkedin.com/in'))
           .slice(0, 4)
           .map(r => {
@@ -290,22 +290,17 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
             const personName = titleMatch ? titleMatch[1].trim() : slugName
             const position = r.title.replace(personName, '').replace(/^[\s\-–|]+/, '').split('·')[0].trim()
             if (!personName || personName.length < 3) return null
-            return { name: personName, position: position || '', role_type: 'Influencer', why_relevant: r.snippet ? r.snippet.slice(0, 120) : '', linkedin_url: r.link }
+            return { name: personName, position: position || '', role_type: 'Influencer', why_relevant: (r.snippet || '').slice(0, 120), linkedin_url: r.link }
           })
           .filter(Boolean)
       }
 
-      // Add LinkedIn names to context so AI can reference them
-      if (liStakeholders.length > 0) {
-        context += '\n\nLINKEDIN PROFILES FOUND:\n' + liStakeholders.map(s => s.name + (s.position ? ' — ' + s.position : '') + ' (' + s.linkedin_url + ')').join('\n')
-      }
-
-      const prompt = 'You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "' + name + '". Return ONLY a valid JSON object (no markdown): {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"talking_points":[string,string,string],"stakeholders":[{"name":string,"position":string,"role_type":"Champion"|"Economic Buyer"|"Influencer"|"Blocker"|"Technical Buyer"|"User","why_relevant":string,"linkedin_url":string}]}. Generate 3-5 signals, 3 sharp talking points, and 2-4 key stakeholders using named individuals from the search data and LinkedIn profiles provided. Assign role_type based on their title. Set linkedin_url from the LinkedIn profiles list if available.'
+      const prompt = 'You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "' + name + '". Return ONLY a valid JSON object (no markdown, no extra text): {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"talking_points":[string,string,string],"stakeholders":[{"name":string,"position":string,"role_type":"Champion"|"Economic Buyer"|"Influencer"|"Blocker"|"Technical Buyer","why_relevant":string,"linkedin_url":string}]}. Generate 3-5 signals, 3 talking points, and up to 3 stakeholders ONLY if their full names appear explicitly in the web data provided. If no named individuals appear, return stakeholders as an empty array [].'
 
       const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1400, false)
       const parsed = extractJSON(result)
       if (parsed && parsed.name) {
-        // If AI returned no stakeholders, fall back to raw LinkedIn results
+        // Merge: use AI stakeholders if found, otherwise use LinkedIn fallback
         if ((!parsed.stakeholders || parsed.stakeholders.length === 0) && liStakeholders.length > 0) {
           parsed.stakeholders = liStakeholders
         }
