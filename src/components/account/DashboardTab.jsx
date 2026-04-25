@@ -122,6 +122,7 @@ export default function DashboardTab({ account, onEdit }) {
                 <div key={s.id || s.title} className={'signal-card ' + s.priority} style={{ marginBottom: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: PRIORITY_COLORS[s.priority], marginBottom: 3 }}>{s.title}</div>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>{s.action}</div>
+                  {s.source_url && <a href={s.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#9ca3af', marginTop: 3, display: 'block' }}>↗ {s.source || 'Source'}</a>}
                 </div>
               ))}
             </div>

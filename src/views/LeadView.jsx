@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
-import { callAI, serperSearch, tavilySearch, extractSignals, scoreLead } from '../lib/ai'
+import { callAI, serperSearch, tavilySearch, extractSignals, scoreLead, hunterPersonEmail } from '../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_SWEEPS, DEMO_COACH, delay } from '../lib/demo'
 import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext } from '../lib/helpers'
 import Modal from '../components/ui/Modal'
@@ -88,6 +88,7 @@ function LeadOverview({ lead, save, promote, showToast, user }) {
   const signals = lead.signals || []
   const urgentCount = signals.filter(s => s.priority === 'urgent').length
   const [rescoring, setRescoring] = useState(false)
+  const [showMoreScore, setShowMoreScore] = useState(false)
 
   const rescore = async () => {
     setRescoring(true)
@@ -140,7 +141,16 @@ function LeadOverview({ lead, save, promote, showToast, user }) {
             {lead.score ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <ScoreCircle score={lead.score} />
-                {lead.scoreReason && <div style={{ fontSize: 10, color: '#9ca3af', maxWidth: 120, textAlign: 'center', lineHeight: 1.4 }}>{lead.scoreReason}</div>}
+                {lead.scoreReason && (
+                  <div style={{ fontSize: 10, color: '#9ca3af', maxWidth: 120, textAlign: 'center', lineHeight: 1.4 }}>
+                    {showMoreScore ? lead.scoreReason : lead.scoreReason.slice(0, 60) + (lead.scoreReason.length > 60 ? '…' : '')}
+                    {lead.scoreReason.length > 60 && (
+                      <span onClick={() => setShowMoreScore(s => !s)} style={{ color: '#185FA5', cursor: 'pointer', display: 'block', marginTop: 2 }}>
+                        {showMoreScore ? 'less' : 'more'}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={rescore} disabled={rescoring}>{rescoring ? <Spinner /> : '↻ Re-score'}</button>
               </div>
             ) : (
@@ -196,6 +206,7 @@ function LeadOverview({ lead, save, promote, showToast, user }) {
               <div style={{ fontSize: 12, fontWeight: 600, color: PRIORITY_COLORS[s.priority] }}>{s.title}</div>
               <div style={{ fontSize: 12, color: '#374151', margin: '4px 0' }}>{s.body}</div>
               <div style={{ fontSize: 12, color: '#0F6E56', fontWeight: 500 }}>→ {s.action}</div>
+              {s.source_url && <a href={s.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#9ca3af', marginTop: 4, display: 'block' }}>↗ {s.source || 'Source'}</a>}
             </div>
           ))}
         </div>
@@ -330,7 +341,7 @@ function LeadIntelligence({ lead, save, user, showToast }) {
               </div>
               <div style={{ fontSize: 12, color: '#374151' }}>{s.body}</div>
               {s.action && <div style={{ fontSize: 12, color: '#0F6E56', marginTop: 4 }}>→ {s.action}</div>}
-              {s.source && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>via {s.source} {s.date ? '· ' + s.date : ''}</div>}
+              {s.source && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>via {s.source_url ? <a href={s.source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#9ca3af' }}>{s.source}</a> : s.source}{s.date ? ' · ' + s.date : ''}</div>}
             </div>
           ))}
         </div>
@@ -339,10 +350,15 @@ function LeadIntelligence({ lead, save, user, showToast }) {
   )
 }
 
-// ── Contacts tab (unchanged from V3) ─────────────────────────────
+// ── Contacts tab ─────────────────────────────────────────────────
 function LeadContacts({ lead, save, showToast }) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ name: '', title: '', role: '', email: '', phone: '', linkedin: '', notes: '' })
+  const [showFinder, setShowFinder] = useState(false)
+  const [liLoading, setLiLoading] = useState(false)
+  const [liResults, setLiResults] = useState([])
+  const [emailLoading, setEmailLoading] = useState({})
+  const [emailResults, setEmailResults] = useState({})
   const contacts = lead.contacts || []
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -354,6 +370,48 @@ function LeadContacts({ lead, save, showToast }) {
   }
 
   const removeContact = async (id) => save({ contacts: contacts.filter(c => c.id !== id) })
+
+  const searchLinkedIn = async () => {
+    setLiLoading(true); setLiResults([])
+    try {
+      const data = await serperSearch(lead.name + ' executives site:linkedin.com/in')
+      const parsed = (data.organic || []).slice(0, 6).map(r => {
+        const namePart = (r.title || '').split(' - ')[0].split(' | ')[0].trim()
+        const titlePart = (r.title || '').split(' - ')[1] || (r.snippet || '').split('·')[0].trim()
+        return { name: namePart, title: titlePart.slice(0, 60), linkedin: r.link }
+      }).filter(r => r.name && r.name.length > 2 && !r.name.toLowerCase().includes('linkedin'))
+      setLiResults(parsed)
+      if (!parsed.length) showToast('No LinkedIn profiles found', 'error')
+    } catch (e) { showToast('Search failed', 'error') }
+    setLiLoading(false)
+  }
+
+  const findEmail = async (person, idx) => {
+    setEmailLoading(prev => ({ ...prev, [idx]: true }))
+    try {
+      const parts = person.name.trim().split(' ')
+      const domain = (lead.website || '').replace(/^https?:\/\/(www\.)?/, '').split('/')[0]
+      if (!domain) { showToast('No website on lead — cannot look up email', 'error'); return }
+      const result = await hunterPersonEmail(parts[0] || '', parts.slice(1).join(' ') || '', domain)
+      if (result.email) setEmailResults(prev => ({ ...prev, [idx]: result }))
+      else showToast('No email found for ' + person.name, 'error')
+    } catch (e) { showToast('Email lookup failed', 'error') }
+    setEmailLoading(prev => ({ ...prev, [idx]: false }))
+  }
+
+  const addFromFinder = async (person, idx) => {
+    const emailData = emailResults[idx]
+    const matchIdx = contacts.findIndex(c => c.name.toLowerCase() === person.name.toLowerCase())
+    let updated
+    if (matchIdx >= 0) {
+      updated = contacts.map((c, i) => i === matchIdx ? { ...c, linkedin: c.linkedin || person.linkedin, email: emailData ? emailData.email : c.email } : c)
+      showToast(person.name + ' updated', 'success')
+    } else {
+      updated = [...contacts, { id: uid(), name: person.name, title: person.title || '', role: '', email: emailData ? emailData.email : '', linkedin: person.linkedin || '', phone: '', notes: '' }]
+      showToast(person.name + ' added', 'success')
+    }
+    await save({ contacts: updated })
+  }
 
   return (
     <div className="main-content">
@@ -382,6 +440,53 @@ function LeadContacts({ lead, save, showToast }) {
           {c.notes && <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 6 }}>{c.notes}</div>}
         </div>
       ))}
+
+      {/* Find contacts online panel */}
+      <div className="ai-panel" style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showFinder ? 12 : 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Find contacts online</div>
+          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => { setShowFinder(f => !f); if (!showFinder) setLiResults([]) }}>
+            {showFinder ? 'Hide' : 'Search LinkedIn + emails'}
+          </button>
+        </div>
+        {showFinder && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <button className="btn btn-primary btn-sm" onClick={searchLinkedIn} disabled={liLoading}>
+                {liLoading ? <Spinner /> : '🔍 Search LinkedIn'}
+              </button>
+              <span style={{ fontSize: 11, color: '#9ca3af', alignSelf: 'center' }}>Searching: {lead.name}</span>
+            </div>
+            {liResults.map((r, i) => {
+              const emailData = emailResults[i]
+              const confColor = emailData ? (emailData.score >= 90 ? '#1D9E75' : emailData.score >= 70 ? '#BA7517' : '#A32D2D') : '#6b7280'
+              return (
+                <div key={i} style={{ background: 'white', border: '0.5px solid #e5e5e5', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1f2937' }}>{r.name}</div>
+                      <div style={{ fontSize: 11, color: '#6b7280' }}>{r.title}</div>
+                      {r.linkedin && <a href={r.linkedin} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>LinkedIn ↗</a>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      {!emailData && <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => findEmail(r, i)} disabled={emailLoading[i]}>{emailLoading[i] ? <Spinner /> : '📧 Email'}</button>}
+                      <button className="btn btn-primary btn-sm" style={{ fontSize: 10 }} onClick={() => addFromFinder(r, i)}>+ Add</button>
+                    </div>
+                  </div>
+                  {emailData && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                      <a href={'mailto:' + emailData.email} style={{ color: '#185FA5' }}>{emailData.email}</a>
+                      <span style={{ padding: '1px 6px', borderRadius: 10, background: confColor + '22', color: confColor, fontWeight: 600 }}>{emailData.score}%</span>
+                      <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => navigator.clipboard.writeText(emailData.email)}>Copy</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {open && (
         <Modal title="Add contact" onClose={() => setOpen(false)}
           footer={<><button className="btn btn-secondary" onClick={() => setOpen(false)}>Cancel</button><button className="btn btn-primary" onClick={addContact}>Add</button></>}>

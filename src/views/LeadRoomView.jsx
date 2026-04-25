@@ -413,6 +413,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
                   <div style={{ fontSize: 12, fontWeight: 600, color: s.priority === 'urgent' ? '#A32D2D' : s.priority === 'watch' ? '#BA7517' : s.priority === 'grant' ? '#0F6E56' : '#185FA5' }}>{s.title}</div>
                   <div style={{ fontSize: 12, color: '#374151', margin: '4px 0' }}>{s.body}</div>
                   <div style={{ fontSize: 12, color: '#0F6E56', fontWeight: 500 }}>→ {s.action}</div>
+                  {s.source_url && <a href={s.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#9ca3af', marginTop: 4, display: 'block' }}>↗ {s.source || 'Source'}</a>}
                 </div>
               ))}
             </div>
@@ -725,11 +726,19 @@ function EmailFinder({ user, saveAccount, showToast, leads, initialQuery }) {
 
   const addContact = async (email, leadId) => {
     const lead = leads.find(l => l.id === leadId)
-    if (!lead) return showToast('Select a lead to add to', 'error')
-    const contact = { id: uid(), name: email.first_name + ' ' + email.last_name, title: email.position || '', role: 'Influencer', email: email.value, emailConfidence: email.confidence, linkedin: email.linkedin_url || '', notes: '' }
-    const contacts = [...(lead.contacts || []).filter(c => c.email !== email.value), contact]
+    if (!lead) return showToast('Select a lead above first', 'error')
+    const fullName = (email.first_name + ' ' + email.last_name).trim()
+    const existing = lead.contacts || []
+    const matchIdx = existing.findIndex(c => c.name.toLowerCase() === fullName.toLowerCase())
+    let contacts
+    if (matchIdx >= 0) {
+      contacts = existing.map((c, i) => i === matchIdx ? { ...c, email: email.value, emailConfidence: email.confidence, linkedin: c.linkedin || email.linkedin_url || '' } : c)
+      showToast(fullName + ' email updated', 'success')
+    } else {
+      contacts = [...existing, { id: uid(), name: fullName, title: email.position || '', role: 'Influencer', email: email.value, emailConfidence: email.confidence, linkedin: email.linkedin_url || '', notes: '' }]
+      showToast(fullName + ' added to ' + lead.name, 'success')
+    }
     await saveAccount({ ...lead, contacts })
-    showToast(contact.name + ' added to ' + lead.name, 'success')
   }
 
   const CONF_COLOR = (n) => n >= 90 ? '#0F6E56' : n >= 70 ? '#BA7517' : '#A32D2D'
