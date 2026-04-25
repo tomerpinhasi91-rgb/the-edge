@@ -92,7 +92,7 @@ export default function App() {
     </div>
   )
 
-  if (!user) return <AuthScreen />
+  if (!user) return <><AuthScreen /><Toast /></>
 
   // ✅ New user empty state — no accounts AND on leadroom/default view
   const isNewUser = !loading && accounts.length === 0
