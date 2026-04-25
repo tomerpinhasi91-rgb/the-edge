@@ -235,7 +235,6 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       const match = Object.keys(DEMO_RESEARCH).find(k => key.includes(k) || k.includes(key))
       if (match) {
         const raw = DEMO_RESEARCH[match]
-        // Map contacts[] → stakeholders[] for display
         const inferRole = (c) => {
           if (c.why_relevant && /champion/i.test(c.why_relevant)) return 'Champion'
           if (c.why_relevant && /blocker/i.test(c.why_relevant)) return 'Blocker'
@@ -244,7 +243,14 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
           if (/counsel|legal|gc/i.test(c.title || '')) return 'Blocker'
           return 'Influencer'
         }
-        const stakeholders = (raw.contacts || []).map(c => ({ name: c.name, position: c.title, role_type: inferRole(c), why_relevant: c.why_relevant, linkedin_url: c.linkedin || '' }))
+        // Auto-match demo emails by first name
+        const demoEmailKey = Object.keys(DEMO_EMAILS).find(k => key.includes(k) || k.includes(key))
+        const demoEmails = demoEmailKey ? (DEMO_EMAILS[demoEmailKey].emails || []) : []
+        const stakeholders = (raw.contacts || []).map(c => {
+          const firstName = c.name.trim().split(' ')[0].toLowerCase()
+          const matched = demoEmails.find(e => e.first_name && e.first_name.toLowerCase() === firstName)
+          return { name: c.name, position: c.title, role_type: inferRole(c), why_relevant: c.why_relevant, linkedin_url: c.linkedin || '', email: matched ? matched.value : '', emailConfidence: matched ? matched.confidence : 0 }
+        })
         const p = { ...raw, stakeholders }
         setProfile(p); lsSet(LS_RESEARCH, p)
         setStatus('Found: ' + p.name)
@@ -304,6 +310,27 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
         if ((!parsed.stakeholders || parsed.stakeholders.length === 0) && liStakeholders.length > 0) {
           parsed.stakeholders = liStakeholders
         }
+        // Auto-enrich stakeholders with emails via one Hunter domain search
+        const domain = (parsed.website || '').replace(/^https?:\/\/(www\.)?/, '').split('/')[0]
+        if (domain && (parsed.stakeholders || []).length > 0) {
+          try {
+            setStatus('Found: ' + parsed.name + ' — fetching emails...')
+            const hunterData = await hunterSearch(domain)
+            const hunterEmails = hunterData.emails || []
+            if (hunterEmails.length > 0) {
+              parsed.stakeholders = parsed.stakeholders.map(s => {
+                const firstName = s.name.trim().split(' ')[0].toLowerCase()
+                const lastName = s.name.trim().split(' ').slice(1).join(' ').toLowerCase()
+                const m = hunterEmails.find(e => {
+                  const ef = (e.first_name || '').toLowerCase()
+                  const el = (e.last_name || '').toLowerCase()
+                  return ef === firstName && (!el || !lastName || el === lastName)
+                }) || hunterEmails.find(e => (e.first_name || '').toLowerCase() === firstName)
+                return m && m.value ? { ...s, email: m.value, emailConfidence: m.confidence || 0 } : s
+              })
+            }
+          } catch (e) {} // email enrichment is best-effort
+        }
         setProfile(parsed)
         lsSet(LS_RESEARCH, parsed)
         setStatus('Found: ' + parsed.name)
@@ -322,10 +349,11 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
     try {
       const leadId = uid()
       const today = new Date().toISOString().split('T')[0]
-      // Convert stakeholders to contacts format for the lead
+      // Convert stakeholders to contacts format for the lead (preserve auto-matched emails)
       const stakeholderContacts = (profile.stakeholders || []).map(s => ({
         id: uid(), name: s.name, title: s.position, role: s.role_type || 'Influencer',
-        email: '', phone: '', linkedin: s.linkedin_url || '', notes: s.why_relevant || ''
+        email: s.email || '', emailConfidence: s.emailConfidence || 0,
+        phone: '', linkedin: s.linkedin_url || '', notes: s.why_relevant || ''
       }))
       const lead = {
         ...profile, id: leadId, _type: 'lead', savedAt: today,
@@ -456,7 +484,7 @@ const ROLE_BG = { Champion: '#e1f5ee', 'Economic Buyer': '#E6F1FB', Influencer: 
 
 function StakeholderCard({ stakeholder: s, profileDomain, profileName, user, showToast }) {
   const [emailLoading, setEmailLoading] = useState(false)
-  const [emailResult, setEmailResult] = useState(null)
+  const [emailResult, setEmailResult] = useState(s.email ? { email: s.email, score: s.emailConfidence || 0 } : null)
   const roleColor = ROLE_COLORS[s.role_type] || '#6b7280'
   const roleBg = ROLE_BG[s.role_type] || '#f3f4f6'
 
@@ -464,7 +492,6 @@ function StakeholderCard({ stakeholder: s, profileDomain, profileName, user, sho
     if (!profileDomain) return showToast('No company domain available', 'error')
     setEmailLoading(true); setEmailResult(null)
 
-    // Demo: match from DEMO_EMAILS by first name + company
     if (isDemoUser(user)) {
       await delay(800)
       const key = getDemoKey(profileName || '')
@@ -480,9 +507,7 @@ function StakeholderCard({ stakeholder: s, profileDomain, profileName, user, sho
 
     try {
       const parts = s.name.trim().split(' ')
-      const firstName = parts[0]
-      const lastName = parts.slice(1).join(' ') || parts[0]
-      const data = await hunterPersonEmail(firstName, lastName, profileDomain)
+      const data = await hunterPersonEmail(parts[0], parts.slice(1).join(' ') || parts[0], profileDomain)
       setEmailResult(data)
     } catch (e) { showToast('Email lookup failed', 'error') }
     setEmailLoading(false)
