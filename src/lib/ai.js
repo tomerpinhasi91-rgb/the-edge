@@ -84,7 +84,7 @@ export const tavilySearch = async (query, maxResults = 5) => {
   return res.json()
 }
 
-// Hunter.io emails
+// Hunter.io domain/company email search
 export const hunterSearch = async (query) => {
   const res = await fetch('/api/hunter', {
     method: 'POST',
@@ -93,6 +93,36 @@ export const hunterSearch = async (query) => {
   })
   if (!res.ok) throw new Error('Hunter search failed')
   return res.json()
+}
+
+// Hunter.io person-level email finder (name + domain → verified email)
+export const hunterPersonEmail = async (firstName, lastName, domain) => {
+  const res = await fetch('/api/hunter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'person', firstName, lastName, domain })
+  })
+  if (!res.ok) throw new Error('Hunter email finder failed')
+  return res.json()
+}
+
+// Lead scoring via AI
+export const scoreLead = async (profile) => {
+  const signals = (profile.signals || []).map(s => '[' + s.priority + '] ' + s.title).join(', ')
+  const stakeholders = (profile.stakeholders || profile.contacts || []).map(s => s.name + ' (' + (s.position || s.title || '') + ', ' + (s.role_type || '') + ')').join(', ')
+  const prompt = 'You are a B2B sales qualification expert. Score this lead from 0-100 based on sales readiness and opportunity quality. Return ONLY valid JSON: {"score": <number 0-100>, "reasoning": "<2 sentences explaining the score>"}'
+  const context = 'Company: ' + (profile.name || '') + '\n' +
+    'Industry: ' + (profile.industry || '') + '\n' +
+    'Size: ' + (profile.size || 'unknown') + '\n' +
+    'Signals: ' + (signals || 'none') + '\n' +
+    'Key stakeholders: ' + (stakeholders || 'none identified') + '\n' +
+    'Talking points: ' + (profile.talking_points || []).join('; ')
+  try {
+    const raw = await callAI(prompt, [{ role: 'user', content: context }], 300)
+    const parsed = extractJSON(raw)
+    if (parsed && typeof parsed.score === 'number') return { score: Math.min(100, Math.max(0, Math.round(parsed.score))), reasoning: parsed.reasoning || '' }
+  } catch (e) {}
+  return { score: 0, reasoning: '' }
 }
 
 // Search + structure with AI

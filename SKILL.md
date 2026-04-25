@@ -234,13 +234,16 @@ module.exports = async function handler(req, res) { ... }
 - ✅ Deal accounts: Dashboard (overview card, progress bar, urgent signals metric), Intelligence, Activities (AI Assistant panel), Contacts, Notes, AI Coach
 - ✅ Lead detail: Overview (score circle, company info, signal badges, CTA banner), Intelligence, Contacts, Notes, AI Coach
 - ✅ AI Coach auto-saves sessions to Supabase
-- ✅ Lead Room: Prospect Finder (Serper, results persist), Company Research (results + history persist), Contact Finder (LinkedIn search via Serper + manual add), Email Finder (Hunter.io, auto-runs from Research), Saved Leads
-- ✅ Company Research — contacts removed from AI prompt (were hallucinating "Unknown") — replaced with ContactFinder component
-- ✅ ContactFinder — searches Google for `site:linkedin.com/in` profiles, shows clickable results with View + Add buttons, manual add form, Hunter.io shortcut
+- ✅ Lead Room: Prospect Finder (Serper, results persist), Company Research (results + history persist), Email Finder (Hunter.io, auto-runs from Research), Saved Leads
+- ✅ Company Research — AI prompt extracts stakeholders[] (name, position, role_type, why_relevant, linkedin_url) from web data. Each stakeholder card has "📧 Find email" (Hunter people-search) and role badge. Stakeholders saved as contacts when lead is saved.
+- ✅ Lead Score — auto-calculated by AI (0–100) when lead is saved from research. Score shown in ScoreCircle (green/orange/red). "Re-score" + "Score lead" buttons in Lead Overview.
+- ✅ Intelligence sweep quick buttons — click auto-runs the sweep immediately (not just fill input)
+- ✅ Email Finder — "Add to lead" button on each result, lead selector dropdown shown when leads exist
+- ✅ ContactFinder (secondary) — searches Google for `site:linkedin.com/in` profiles below the AI stakeholders section
 - ✅ Demo mode: all features return pre-baked results for demo@theedge.app
 - ✅ Admin view: 4 tabs — Users (drill-down), Activity Feed, Signal Library, Diagnostics (connection test + token usage)
 - ✅ Profile view: 3 tabs — Profile (personal/work/sales context saved to localStorage), Security (change password), Diagnostics
-- ✅ Profile injected into AI Coach system prompt for personalised responses
+- ✅ Profile injected into AI Coach system prompt for personalised responses (CoachTab, ActivitiesTab, LeadView coach — all use loadProfile + buildRepContext)
 - ✅ All 4 API serverless functions using Node https (no fetch dependency)
 - ✅ NewAccountView navigation bug fixed (was onSave(form.id), now onSave(accountId))
 
@@ -255,9 +258,7 @@ module.exports = async function handler(req, res) { ... }
 1. **Stripe billing** — add `stripe` package + `/api/create-checkout.js` + pricing page
 2. **User onboarding flow** — step-by-step guided setup for new users beyond the empty state
 3. **Email sending** — integrate SendGrid or Resend to send emails directly from contact cards
-4. **AI Coach profile injection** — wire `loadProfile(user.id)` into CoachTab system prompt (groundwork in ProfileView, needs wiring in CoachTab and LeadCoach)
-5. **Intelligence sweep quick buttons** — in V2 they auto-populated AND auto-ran. V3 they only populate.
-6. **Search past chats** — search across all accounts and activities
+4. **Search past chats** — search across all accounts and activities
 
 ---
 

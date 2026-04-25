@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
-import { callAI, serperSearch, tavilySearch, extractSignals } from '../lib/ai'
+import { callAI, serperSearch, tavilySearch, extractSignals, scoreLead } from '../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_SWEEPS, DEMO_COACH, delay } from '../lib/demo'
 import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext } from '../lib/helpers'
 import Modal from '../components/ui/Modal'
@@ -74,7 +74,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
         {TABS.map(t => <button key={t.key} className={'tab-btn' + (tab === t.key ? ' active' : '')} onClick={() => setTab(t.key)}>{t.label}</button>)}
       </div>
 
-      {tab === 'overview' && <LeadOverview lead={lead} save={save} promote={promote} showToast={showToast} />}
+      {tab === 'overview' && <LeadOverview lead={lead} save={save} promote={promote} showToast={showToast} user={user} />}
       {tab === 'intelligence' && <LeadIntelligence lead={lead} save={save} user={user} showToast={showToast} />}
       {tab === 'contacts' && <LeadContacts lead={lead} save={save} showToast={showToast} />}
       {tab === 'notes' && <LeadNotes lead={lead} save={save} showToast={showToast} />}
@@ -84,9 +84,20 @@ export default function LeadView({ lead, setView, setActiveId }) {
 }
 
 // ── Overview tab ─────────────────────────────────────────────────
-function LeadOverview({ lead, save, promote, showToast }) {
+function LeadOverview({ lead, save, promote, showToast, user }) {
   const signals = lead.signals || []
   const urgentCount = signals.filter(s => s.priority === 'urgent').length
+  const [rescoring, setRescoring] = useState(false)
+
+  const rescore = async () => {
+    setRescoring(true)
+    try {
+      const result = await scoreLead({ ...lead, stakeholders: lead.contacts || [] })
+      await save({ score: result.score, scoreReason: result.reasoning })
+      showToast('Score updated: ' + result.score + '/100', 'success')
+    } catch (e) { showToast('Rescore failed', 'error') }
+    setRescoring(false)
+  }
 
   // Company info rows — only show fields that have data
   const infoRows = [
@@ -126,7 +137,15 @@ function LeadOverview({ lead, save, promote, showToast }) {
                 <div style={{ color: '#9ca3af', fontSize: 13 }}>No company info — run an Intelligence Sweep to populate</div>
               )}
             </div>
-            {lead.score && <ScoreCircle score={lead.score} />}
+            {lead.score ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <ScoreCircle score={lead.score} />
+                {lead.scoreReason && <div style={{ fontSize: 10, color: '#9ca3af', maxWidth: 120, textAlign: 'center', lineHeight: 1.4 }}>{lead.scoreReason}</div>}
+                <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={rescore} disabled={rescoring}>{rescoring ? <Spinner /> : '↻ Re-score'}</button>
+              </div>
+            ) : (
+              <button className="btn btn-secondary btn-sm" style={{ fontSize: 10, flexShrink: 0 }} onClick={rescore} disabled={rescoring}>{rescoring ? <><Spinner /> Scoring…</> : '⭐ Score lead'}</button>
+            )}
           </div>
 
           {/* Signal badge summary */}

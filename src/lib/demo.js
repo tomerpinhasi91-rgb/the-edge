@@ -5,6 +5,7 @@ export const delay = (ms) => new Promise(r => setTimeout(r, ms))
 
 export const DEMO_RESEARCH = {
   'apex protein co': {
+    score: 87,
     name: 'Apex Protein Co',
     industry: 'Food Manufacturing – Protein & Sports Nutrition',
     location: 'Norwood, Adelaide SA',
@@ -28,6 +29,7 @@ export const DEMO_RESEARCH = {
     ]
   },
   'bluecrest logistics': {
+    score: 82,
     name: 'BlueCrest Logistics',
     industry: 'Cold Chain Logistics & Warehousing',
     location: 'Bibra Lake, Perth WA',
@@ -49,6 +51,7 @@ export const DEMO_RESEARCH = {
     ]
   },
   'summit packaging solutions': {
+    score: 91,
     name: 'Summit Packaging Solutions',
     industry: 'Sustainable Packaging Manufacturing',
     location: 'Murarrie, Brisbane QLD',
@@ -71,6 +74,7 @@ export const DEMO_RESEARCH = {
     ]
   },
   'harvest ridge foods': {
+    score: 78,
     name: 'Harvest Ridge Foods',
     industry: 'Food Processing & Distribution – Fresh Produce',
     location: 'Dandenong South, Melbourne VIC',

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
-import { callAI, serperSearch, tavilySearch, hunterSearch, extractJSON } from '../lib/ai'
+import { callAI, serperSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON } from '../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
 import { initials, cleanDomain } from '../lib/helpers'
 import Spinner from '../components/ui/Spinner'
@@ -234,7 +234,18 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       const key = getDemoKey(name)
       const match = Object.keys(DEMO_RESEARCH).find(k => key.includes(k) || k.includes(key))
       if (match) {
-        const p = DEMO_RESEARCH[match]
+        const raw = DEMO_RESEARCH[match]
+        // Map contacts[] → stakeholders[] for display
+        const inferRole = (c) => {
+          if (c.why_relevant && /champion/i.test(c.why_relevant)) return 'Champion'
+          if (c.why_relevant && /blocker/i.test(c.why_relevant)) return 'Blocker'
+          if (/ceo|md|managing director|founder/i.test(c.title || '')) return 'Economic Buyer'
+          if (/cfo|coo|director|head of/i.test(c.title || '')) return 'Economic Buyer'
+          if (/counsel|legal|gc/i.test(c.title || '')) return 'Blocker'
+          return 'Influencer'
+        }
+        const stakeholders = (raw.contacts || []).map(c => ({ name: c.name, position: c.title, role_type: inferRole(c), why_relevant: c.why_relevant, linkedin_url: c.linkedin || '' }))
+        const p = { ...raw, stakeholders }
         setProfile(p); lsSet(LS_RESEARCH, p)
         setStatus('Found: ' + p.name)
         addToHistory(p.name)
@@ -257,11 +268,9 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       }
       if (tavily.status === 'fulfilled') context += '\n\nADDITIONAL:\n' + (tavily.value.results || []).slice(0, 3).map(r => r.title + ': ' + (r.content || '').slice(0, 300)).join('\n\n')
 
-      // ✅ Contacts removed from AI prompt — they're unreliable from web data.
-      // Use Hunter.io Email Finder for real contacts instead.
-      const prompt = 'You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "' + name + '". Return ONLY a valid JSON object (no markdown): {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"talking_points":[string,string,string]}. Generate 3-5 signals and 3 sharp talking points a B2B sales rep can use in an opening conversation.'
+      const prompt = 'You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "' + name + '". Return ONLY a valid JSON object (no markdown): {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"talking_points":[string,string,string],"stakeholders":[{"name":string,"position":string,"role_type":"Champion"|"Economic Buyer"|"Influencer"|"Blocker"|"Technical Buyer"|"User","why_relevant":string,"linkedin_url":string}]}. Generate 3-5 signals, 3 sharp talking points, and 2-4 key stakeholders ONLY if their names appear in the search data — do not invent names. Omit stakeholders entirely if no named individuals are found.'
 
-      const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1200, false)
+      const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1400, false)
       const parsed = extractJSON(result)
       if (parsed && parsed.name) {
         setProfile(parsed)
@@ -280,15 +289,35 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
     if (!profile || !saveAccount) return
     setSaving(true)
     try {
+      const leadId = uid()
+      const today = new Date().toISOString().split('T')[0]
+      // Convert stakeholders to contacts format for the lead
+      const stakeholderContacts = (profile.stakeholders || []).map(s => ({
+        id: uid(), name: s.name, title: s.position, role: s.role_type || 'Influencer',
+        email: '', phone: '', linkedin: s.linkedin_url || '', notes: s.why_relevant || ''
+      }))
       const lead = {
-        ...profile, id: uid(), _type: 'lead',
-        savedAt: new Date().toISOString().split('T')[0],
-        signals: (profile.signals || []).map(s => ({ ...s, id: uid(), date: new Date().toISOString().split('T')[0] })),
-        contacts: [],
+        ...profile, id: leadId, _type: 'lead', savedAt: today,
+        signals: (profile.signals || []).map(s => ({ ...s, id: uid(), date: today })),
+        contacts: stakeholderContacts,
         activities: [], checklist: [], coach_sessions: []
       }
+
+      // For demo: use pre-set score; for real users: call AI scorer
+      let score = 0, scoreReason = ''
+      if (isDemoUser(user)) {
+        const key = getDemoKey(profile.name)
+        const match = Object.keys(DEMO_RESEARCH).find(k => key.includes(k) || k.includes(key))
+        score = match && DEMO_RESEARCH[match].score ? DEMO_RESEARCH[match].score : 75
+        scoreReason = 'Strong market signals and identified decision makers indicate high opportunity quality.'
+      } else {
+        const result = await scoreLead(profile)
+        score = result.score; scoreReason = result.reasoning
+      }
+      lead.score = score; lead.scoreReason = scoreReason
+
       await saveAccount(lead)
-      showToast(profile.name + ' saved as lead', 'success')
+      showToast(profile.name + ' saved — score: ' + score + '/100', 'success')
       if (setActiveId) setActiveId(lead.id)
       if (setView) setView('lead')
     } catch (e) { showToast(e.message, 'error') }
@@ -358,24 +387,115 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
             </div>
           )}
 
-          {/* Talking points + Hunter CTA side by side */}
-          <div className="grid-2">
-            {(profile.talking_points || []).length > 0 && (
-              <div className="card">
-                <div className="card-title">Talking points</div>
-                {(profile.talking_points || []).map((t, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: i < profile.talking_points.length - 1 ? '0.5px solid #f3f3f3' : 'none', fontSize: 12, color: '#374151', lineHeight: 1.5 }}>
-                    <span style={{ color: '#1D9E75', fontWeight: 700, flexShrink: 0, fontSize: 10 }}>{String(i + 1).padStart(2, '0')}</span>
-                    <span>{t}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* Talking points */}
+          {(profile.talking_points || []).length > 0 && (
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="card-title">Talking points</div>
+              {(profile.talking_points || []).map((t, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: i < profile.talking_points.length - 1 ? '0.5px solid #f3f3f3' : 'none', fontSize: 12, color: '#374151', lineHeight: 1.5 }}>
+                  <span style={{ color: '#1D9E75', fontWeight: 700, flexShrink: 0, fontSize: 10 }}>{String(i + 1).padStart(2, '0')}</span>
+                  <span>{t}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
-            <ContactFinder profile={profile} profileDomain={profileDomain} goToEmail={goToEmail} user={user} showToast={showToast} />
-          </div>
+          {/* Key Stakeholders */}
+          {(profile.stakeholders || []).length > 0 && (
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="card-title">Key stakeholders</div>
+              {(profile.stakeholders || []).map((s, i) => (
+                <StakeholderCard key={i} stakeholder={s} profileDomain={profileDomain} profileName={profile.name} user={user} showToast={showToast} />
+              ))}
+            </div>
+          )}
+
+          {/* Secondary: LinkedIn / manual contact search */}
+          <ContactFinder profile={profile} profileDomain={profileDomain} goToEmail={goToEmail} user={user} showToast={showToast} />
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Stakeholder Card — AI-extracted person with email lookup ─────
+const ROLE_COLORS = { Champion: '#0F6E56', 'Economic Buyer': '#185FA5', Influencer: '#BA7517', Blocker: '#A32D2D', User: '#6b7280', 'Technical Buyer': '#533AB7' }
+const ROLE_BG = { Champion: '#e1f5ee', 'Economic Buyer': '#E6F1FB', Influencer: '#FAEEDA', Blocker: '#FCEBEB', User: '#f3f4f6', 'Technical Buyer': '#ede9fe' }
+
+function StakeholderCard({ stakeholder: s, profileDomain, profileName, user, showToast }) {
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [emailResult, setEmailResult] = useState(null)
+  const roleColor = ROLE_COLORS[s.role_type] || '#6b7280'
+  const roleBg = ROLE_BG[s.role_type] || '#f3f4f6'
+
+  const findEmail = async () => {
+    if (!profileDomain) return showToast('No company domain available', 'error')
+    setEmailLoading(true); setEmailResult(null)
+
+    // Demo: match from DEMO_EMAILS by first name + company
+    if (isDemoUser(user)) {
+      await delay(800)
+      const key = getDemoKey(profileName || '')
+      const companyKey = Object.keys(DEMO_EMAILS).find(k => key.includes(k) || k.includes(key))
+      if (companyKey) {
+        const firstName = s.name.trim().split(' ')[0].toLowerCase()
+        const match = DEMO_EMAILS[companyKey].emails.find(e => e.first_name.toLowerCase() === firstName)
+        if (match) { setEmailResult({ email: match.value, score: match.confidence }); setEmailLoading(false); return }
+      }
+      setEmailResult({ email: null, score: 0 })
+      setEmailLoading(false); return
+    }
+
+    try {
+      const parts = s.name.trim().split(' ')
+      const firstName = parts[0]
+      const lastName = parts.slice(1).join(' ') || parts[0]
+      const data = await hunterPersonEmail(firstName, lastName, profileDomain)
+      setEmailResult(data)
+    } catch (e) { showToast('Email lookup failed', 'error') }
+    setEmailLoading(false)
+  }
+
+  const confColor = (n) => n >= 90 ? '#0F6E56' : n >= 70 ? '#BA7517' : '#A32D2D'
+
+  return (
+    <div style={{ padding: '12px 0', borderBottom: '0.5px solid #f3f3f3' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: roleBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: roleColor, flexShrink: 0 }}>
+          {initials(s.name)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2937' }}>{s.name}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: roleColor, background: roleBg, borderRadius: 4, padding: '1px 6px' }}>{s.role_type}</span>
+          </div>
+          {s.position && <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 3 }}>{s.position}</div>}
+          {s.why_relevant && <div style={{ fontSize: 11, color: '#374151', lineHeight: 1.4 }}>{s.why_relevant}</div>}
+
+          {/* Email result */}
+          {emailResult && emailResult.email && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '5px 8px', background: '#f0fdf8', borderRadius: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: '#185FA5', fontWeight: 500 }}>{emailResult.email}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: confColor(emailResult.score || 0) }}>{emailResult.score}%</span>
+              <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => navigator.clipboard.writeText(emailResult.email).then(() => showToast('Copied', 'success'))}>Copy</button>
+              <a href={'mailto:' + emailResult.email} className="btn btn-secondary btn-sm" style={{ fontSize: 10 }}>✉ Email</a>
+            </div>
+          )}
+          {emailResult && !emailResult.email && (
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>No email found in Hunter.io database</div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' }}>
+          {s.linkedin_url && (
+            <a href={s.linkedin_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm" style={{ fontSize: 10 }}>🔗 LinkedIn</a>
+          )}
+          {!emailResult && (
+            <button className="btn btn-primary btn-sm" style={{ fontSize: 10 }} onClick={findEmail} disabled={emailLoading}>
+              {emailLoading ? <Spinner /> : '📧 Find email'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -541,6 +661,7 @@ function EmailFinder({ user, saveAccount, showToast, leads, initialQuery }) {
   const [org, setOrg] = useState('')
   const [pattern, setPattern] = useState('')
   const [status, setStatus] = useState('')
+  const [selectedLeadId, setSelectedLeadId] = useState('')
 
   // Auto-run when pre-filled from Research or Prospect Finder
   useEffect(() => {
@@ -594,6 +715,17 @@ function EmailFinder({ user, saveAccount, showToast, leads, initialQuery }) {
         {pattern && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Email pattern: {pattern}</div>}
       </div>
 
+      {/* Lead selector — shown when there are results and leads exist */}
+      {emails.length > 0 && leads.length > 0 && (
+        <div style={{ background: '#f9fffe', border: '0.5px solid #9FE1CB', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: '#0F6E56', fontWeight: 600 }}>Add to lead:</span>
+          <select className="form-input" style={{ fontSize: 12, padding: '4px 8px', flex: 1, minWidth: 160 }} value={selectedLeadId} onChange={e => setSelectedLeadId(e.target.value)}>
+            <option value="">— select a lead —</option>
+            {leads.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+      )}
+
       {loading && (
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '40px 20px', color: '#6b7280', fontSize: 13 }}>
           <Spinner /> Searching Hunter.io for {query}...
@@ -612,6 +744,9 @@ function EmailFinder({ user, saveAccount, showToast, leads, initialQuery }) {
             <span style={{ fontSize: 12, fontWeight: 600, color: CONF_COLOR(e.confidence) }}>{e.confidence}%</span>
             <a href={'mailto:' + e.value} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}>✉ Email</a>
             {e.linkedin_url && <a href={e.linkedin_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}>LinkedIn</a>}
+            {leads.length > 0 && (
+              <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }} onClick={() => selectedLeadId ? addContact(e, selectedLeadId) : showToast('Select a lead above first', 'error')}>+ Add</button>
+            )}
           </div>
         </div>
       ))}

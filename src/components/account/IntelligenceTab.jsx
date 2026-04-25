@@ -22,8 +22,9 @@ export default function IntelligenceTab({ account }) {
     'Competitor moves ' + (account.name || '')
   ]
 
-  const runSweep = async () => {
-    if (!sweepInput.trim()) return
+  const runSweep = async (override) => {
+    const query = override !== undefined ? override : sweepInput
+    if (!query.trim()) return
     setSweepLoading(true); setSweepOutput(''); setParsedSignals([])
 
     // Demo mode
@@ -38,8 +39,8 @@ export default function IntelligenceTab({ account }) {
 
     try {
       const ctx = `Company: ${account.name} | Industry: ${account.industry || ''} | Location: ${account.location || ''} | Stage: ${account.stage || ''}`
-      const query = sweepInput + ' ' + account.name + ' ' + (account.industry || '') + ' ' + (account.location || '')
-      const [serper, tavily] = await Promise.allSettled([serperSearch(query), tavilySearch(query, 5)])
+      const fullQuery = query + ' ' + account.name + ' ' + (account.industry || '') + ' ' + (account.location || '')
+      const [serper, tavily] = await Promise.allSettled([serperSearch(fullQuery), tavilySearch(fullQuery, 5)])
       let context = ''
       if (serper.status === 'fulfilled') {
         const news = serper.value.news || [], organic = serper.value.organic || []
@@ -51,7 +52,7 @@ export default function IntelligenceTab({ account }) {
       const prompt = `B2B sales intelligence analyst. Return ONLY valid JSON array: [{"priority":"urgent"|"watch"|"intel"|"grant","title":"one line","body":"2-3 sentences with specific facts","action":"one next step TODAY","source":"publication","source_url":"URL"}]. 3-5 signals. Context: ${ctx}`
       const result = context.length > 100
         ? await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 800, false)
-        : await callAI(prompt, [{ role: 'user', content: 'Find signals: ' + query }], 800, true)
+        : await callAI(prompt, [{ role: 'user', content: 'Find signals: ' + fullQuery }], 800, true)
 
       const parsed = extractSignals(result)
       if (parsed && parsed.length) { setParsedSignals(parsed); setSweepOutput('') }
@@ -78,7 +79,7 @@ export default function IntelligenceTab({ account }) {
       <div className="ai-panel">
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>⚡ Intelligence sweep</div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
-          {QUICK.map((q, i) => <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => setSweepInput(q)}>{q}</button>)}
+          {QUICK.map((q, i) => <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} disabled={sweepLoading} onClick={() => { setSweepInput(q); runSweep(q) }}>{q}</button>)}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input className="form-input" style={{ flex: 1 }} value={sweepInput} onChange={e => setSweepInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && runSweep()} placeholder="Search for news, signals, competitor moves..." />
