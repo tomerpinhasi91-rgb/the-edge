@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
-import { sb } from '../lib/supabase'
+import { sb, uid } from '../lib/supabase'
 import { getTokenStats } from '../lib/ai'
 import { initials, loadProfile } from '../lib/helpers'
+import { loadICP, saveICP, EMPTY_ICP, EMPTY_PERSONA, ICP_SIZES } from '../lib/icp'
 
 const DEAL_SIZES = ['Under $10K', '$10K–$50K', '$50K–$150K', '$150K–$500K', '$500K+']
 const SALES_CYCLES = ['Under 1 month', '1–3 months', '3–6 months', '6–12 months', '12+ months']
@@ -18,9 +19,86 @@ const EMPTY_PROFILE = {
   whatYouSell: '', typicalDealSize: '', averageSalesCycle: '',
 }
 
+// ── Persona Card sub-component ───────────────────────────────────
+function PersonaCard({ persona, index, onChange, onRemove }) {
+  const set = (k, v) => onChange({ ...persona, [k]: v })
+  const PAIN_LAYERS = [
+    ['painOperational', '⚙️ Operational pain', 'Day-to-day problems and friction they face...'],
+    ['painStrategic',   '🎯 Strategic pain',   'Business goals being blocked or slowed...'],
+    ['painPersonal',    '😓 Personal pain',    "What keeps them up at night personally..."],
+    ['painFinancial',   '💰 Financial pain',   'Revenue lost or costs caused by this problem...'],
+  ]
+  return (
+    <div className="card" style={{ border: '0.5px solid var(--color-primary-border)', background: '#F8FBFF', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div className="card-title" style={{ margin: 0, color: 'var(--color-primary)' }}>Persona {index + 1}</div>
+        {onRemove && (
+          <button className="btn btn-danger btn-sm" style={{ fontSize: 10 }} onClick={onRemove}>Remove</button>
+        )}
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Persona name</label>
+        <input className="form-input" value={persona.name} onChange={e => set('name', e.target.value)}
+          placeholder="e.g. Sales Manager at Mid-Market Manufacturer" />
+      </div>
+
+      <div className="form-grid">
+        <div className="form-group">
+          <label className="form-label">Target job titles</label>
+          <input className="form-input" value={persona.titles} onChange={e => set('titles', e.target.value)}
+            placeholder="e.g. Sales Manager, Director of Sales" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Company size (employees)</label>
+          <select className="form-input" value={persona.size} onChange={e => set('size', e.target.value)}>
+            <option value="">Any size</option>
+            {ICP_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+          <label className="form-label">Target industries</label>
+          <input className="form-input" value={persona.industries} onChange={e => set('industries', e.target.value)}
+            placeholder="e.g. Food Manufacturing, Agriculture, Logistics" />
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '14px 0 8px', borderTop: '0.5px solid var(--color-border)', paddingTop: 12 }}>
+        4 Pain Layers
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {PAIN_LAYERS.map(([key, label, placeholder]) => (
+          <div key={key} className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">{label}</label>
+            <textarea className="form-input" value={persona[key]} onChange={e => set(key, e.target.value)}
+              placeholder={placeholder} rows={2} style={{ minHeight: 'unset' }} />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '14px 0 8px', borderTop: '0.5px solid var(--color-border)', paddingTop: 12 }}>
+        Messaging for this persona
+      </div>
+      <div className="form-grid">
+        <div className="form-group">
+          <label className="form-label">Opening hook</label>
+          <input className="form-input" value={persona.hook} onChange={e => set('hook', e.target.value)}
+            placeholder="1-line opener that grabs their attention..." />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Core value proposition</label>
+          <input className="form-input" value={persona.valueProposition} onChange={e => set('valueProposition', e.target.value)}
+            placeholder="What you uniquely offer this persona..." />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ProfileView() {
   const { user, showToast } = useApp()
   const [profile, setProfile] = useState(EMPTY_PROFILE)
+  const [icp, setICP] = useState(EMPTY_ICP())
   const [activeTab, setActiveTab] = useState('profile')
   const [saving, setSaving] = useState(false)
   const [pwForm, setPwForm] = useState({ newPw: '', confirmPw: '' })
@@ -33,6 +111,8 @@ export default function ProfileView() {
     if (!user) return
     const saved = loadProfile(user.id)
     if (saved) setProfile({ ...EMPTY_PROFILE, ...saved })
+    const savedICP = loadICP(user.id)
+    if (savedICP) setICP(savedICP)
   }, [user])
 
   useEffect(() => {
@@ -50,6 +130,27 @@ export default function ProfileView() {
     showToast('Profile saved', 'success')
   }
 
+  const saveIcpData = async () => {
+    setSaving(true)
+    saveICP(user.id, icp)
+    await new Promise(r => setTimeout(r, 300))
+    setSaving(false)
+    showToast('ICP saved — Prospect Finder will now score companies', 'success')
+  }
+
+  const addPersona = () => {
+    if (icp.personas.length >= 3) return
+    setICP(prev => ({ ...prev, personas: [...prev.personas, EMPTY_PERSONA()] }))
+  }
+
+  const updatePersona = (index, updated) => {
+    setICP(prev => ({ ...prev, personas: prev.personas.map((p, i) => i === index ? updated : p) }))
+  }
+
+  const removePersona = (index) => {
+    setICP(prev => ({ ...prev, personas: prev.personas.filter((_, i) => i !== index) }))
+  }
+
   const changePassword = async () => {
     if (!pwForm.newPw || !pwForm.confirmPw) return showToast('Enter both password fields', 'error')
     if (pwForm.newPw !== pwForm.confirmPw) return showToast('Passwords do not match', 'error')
@@ -62,13 +163,10 @@ export default function ProfileView() {
     setPwForm({ newPw: '', confirmPw: '' })
   }
 
-  const signOut = async () => {
-    await sb.auth.signOut()
-  }
+  const signOut = async () => { await sb.auth.signOut() }
 
   const testConnection = async () => {
-    setConnTesting(true)
-    setConnResult(null)
+    setConnTesting(true); setConnResult(null)
     const results = []
     const test = async (name, fn) => {
       try { const r = await fn(); results.push({ name, ok: r.ok, status: r.status }) }
@@ -78,8 +176,7 @@ export default function ProfileView() {
     await test('Serper (Google)', () => fetch('/api/serper', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'test' }) }))
     await test('Tavily', () => fetch('/api/tavily', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'test', max_results: 1 }) }))
     await test('Hunter.io', () => fetch('/api/hunter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'test' }) }))
-    setConnResult(results)
-    setConnTesting(false)
+    setConnResult(results); setConnTesting(false)
   }
 
   const displayName = [profile.firstName, profile.lastName].filter(Boolean).join(' ')
@@ -88,28 +185,29 @@ export default function ProfileView() {
 
   const PROFILE_TABS = [
     { key: 'profile', label: 'Profile' },
+    { key: 'icp', label: '🎯 ICP' },
     { key: 'security', label: 'Security' },
     { key: 'diagnostics', label: 'Diagnostics' },
   ]
 
   return (
     <div className="main-content">
-      <div style={{ maxWidth: 560 }}>
+      <div style={{ maxWidth: 620 }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
           <div style={{
             width: 52, height: 52, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #0F6E56, #1D9E75)',
+            background: 'linear-gradient(135deg, var(--color-primary-dark), var(--color-primary))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: 'white', fontWeight: 700, fontSize: 18, flexShrink: 0
           }}>
             {avatarInitials}
           </div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: '#1f2937' }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>
               {displayName || 'My profile'}
             </div>
-            <div style={{ fontSize: 13, color: '#9ca3af' }}>{user?.email}</div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{user?.email}</div>
           </div>
           <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={signOut}>Sign out</button>
         </div>
@@ -126,12 +224,10 @@ export default function ProfileView() {
         {/* ── PROFILE TAB ── */}
         {activeTab === 'profile' && (
           <>
-            {/* AI Coach context notice */}
-            <div style={{ background: '#e1f5ee', border: '0.5px solid #9FE1CB', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#085041' }}>
+            <div style={{ background: 'var(--color-primary-light)', border: '0.5px solid var(--color-primary-border)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--color-primary)' }}>
               <strong>🤖 AI Coach uses this profile</strong> — your role, what you sell, territory and deal size are injected into every AI Coach session to personalise responses.
             </div>
 
-            {/* Personal info */}
             <div className="card">
               <div className="card-title">Personal info</div>
               <div className="form-grid">
@@ -154,7 +250,6 @@ export default function ProfileView() {
               </div>
             </div>
 
-            {/* Work info */}
             <div className="card">
               <div className="card-title">Work info</div>
               <div className="form-grid">
@@ -185,9 +280,8 @@ export default function ProfileView() {
               </div>
             </div>
 
-            {/* Sales context */}
             <div className="card">
-              <div className="card-title">Sales context <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>— used by AI Coach</span></div>
+              <div className="card-title">Sales context <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400 }}>— used by AI Coach</span></div>
               <div className="form-grid">
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label className="form-label">What you sell</label>
@@ -219,13 +313,71 @@ export default function ProfileView() {
           </>
         )}
 
+        {/* ── ICP TAB — Stage 3 ── */}
+        {activeTab === 'icp' && (
+          <>
+            <div style={{ background: 'var(--color-primary-light)', border: '0.5px solid var(--color-primary-border)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--color-primary)' }}>
+              <strong>🎯 Your Ideal Customer Profile</strong> — define exactly who you target. The app then scores every prospect, generates targeted messaging, and focuses all AI responses on the right buyers. Up to 3 personas.
+            </div>
+
+            {/* Global target settings */}
+            <div className="card">
+              <div className="card-title">Target market</div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">Target geography</label>
+                  <input className="form-input" value={icp.targetGeography}
+                    onChange={e => setICP(p => ({ ...p, targetGeography: e.target.value }))}
+                    placeholder="e.g. Australia, NSW, ANZ" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Target company revenue</label>
+                  <input className="form-input" value={icp.targetRevenue}
+                    onChange={e => setICP(p => ({ ...p, targetRevenue: e.target.value }))}
+                    placeholder="e.g. $5M–$50M annual revenue" />
+                </div>
+              </div>
+            </div>
+
+            {/* Personas */}
+            {icp.personas.map((persona, i) => (
+              <PersonaCard
+                key={persona.id}
+                persona={persona}
+                index={i}
+                onChange={(updated) => updatePersona(i, updated)}
+                onRemove={icp.personas.length > 1 ? () => removePersona(i) : null}
+              />
+            ))}
+
+            {icp.personas.length < 3 && (
+              <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }} onClick={addPersona}>
+                + Add persona ({icp.personas.length}/3)
+              </button>
+            )}
+
+            {/* Messaging framework */}
+            <div className="card">
+              <div className="card-title">Messaging framework <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400 }}>— used by AI Coach for email variants</span></div>
+              <textarea className="form-input" value={icp.messagingFramework}
+                onChange={e => setICP(p => ({ ...p, messagingFramework: e.target.value }))}
+                placeholder="Describe your core message, unique angle, and what makes you different from competitors. e.g. 'We help food manufacturers reduce supplier complexity by 40% using AI-powered procurement intelligence. Unlike traditional CRMs, we focus on market timing rather than activity tracking.'"
+                rows={4} />
+            </div>
+
+            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px 0' }} onClick={saveIcpData} disabled={saving}>
+              {saving ? 'Saving...' : '💾 Save ICP'}
+            </button>
+          </>
+        )}
+
         {/* ── SECURITY TAB ── */}
         {activeTab === 'security' && (
           <>
             <div className="card">
               <div className="card-title">Account</div>
-              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
-                Signed in as <strong style={{ color: '#1f2937' }}>{user?.email}</strong>
+              <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
+                Signed in as <strong style={{ color: 'var(--color-text-primary)' }}>{user?.email}</strong>
               </div>
               <button className="btn btn-secondary btn-sm" onClick={signOut}>Sign out</button>
             </div>
@@ -251,9 +403,8 @@ export default function ProfileView() {
               </div>
             </div>
 
-            {/* Token usage for own user */}
-            <div style={{ background: '#e1f5ee', border: '0.5px solid #9FE1CB', borderRadius: 12, padding: '16px 20px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#085041', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>My AI usage today</div>
+            <div style={{ background: 'var(--color-primary-light)', border: '0.5px solid var(--color-primary-border)', borderRadius: 12, padding: '16px 20px' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>My AI usage today</div>
               <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                 {[
                   ['AI calls', tokens?.calls ?? 0],
@@ -262,12 +413,12 @@ export default function ProfileView() {
                   ['Est. cost', '$' + cost],
                 ].map(([label, val]) => (
                   <div key={label}>
-                    <div style={{ fontSize: 10, color: '#0F6E56', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#085041', marginTop: 2 }}>{val}</div>
+                    <div style={{ fontSize: 10, color: 'var(--color-primary-dark)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', marginTop: 2 }}>{val}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: '#0F6E56', marginTop: 10, opacity: 0.7 }}>Resets daily at midnight</div>
+              <div style={{ fontSize: 11, color: 'var(--color-primary)', marginTop: 10, opacity: 0.7 }}>Resets daily at midnight</div>
             </div>
           </>
         )}
@@ -276,7 +427,7 @@ export default function ProfileView() {
         {activeTab === 'diagnostics' && (
           <div className="card">
             <div className="card-title">Connection test</div>
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 14 }}>
               Having issues? Run this and send results to your admin.
             </div>
             <button className="btn btn-primary btn-sm" onClick={testConnection} disabled={connTesting}>
@@ -285,13 +436,13 @@ export default function ProfileView() {
             {connResult && (
               <div style={{ marginTop: 16 }}>
                 {connResult.map((r, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontSize: 13, borderTop: i > 0 ? '0.5px solid #f3f3f3' : 'none' }}>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', fontSize: 13, borderTop: i > 0 ? '0.5px solid var(--color-border)' : 'none' }}>
                     <span style={{ fontSize: 16 }}>{r.ok ? '✅' : '❌'}</span>
-                    <span style={{ color: '#374151', fontWeight: 500, flex: 1 }}>{r.name}</span>
-                    <span style={{ color: r.ok ? '#1D9E75' : '#A32D2D', fontSize: 12 }}>{r.ok ? 'OK' : r.status}</span>
+                    <span style={{ color: 'var(--color-text-primary)', fontWeight: 500, flex: 1 }}>{r.name}</span>
+                    <span style={{ color: r.ok ? 'var(--color-success)' : 'var(--color-danger)', fontSize: 12 }}>{r.ok ? 'OK' : r.status}</span>
                   </div>
                 ))}
-                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 10 }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 10 }}>
                   {connResult.every(r => r.ok) ? '✅ All systems operational' : '⚠️ One or more APIs are failing — check Vercel env vars.'}
                 </div>
               </div>

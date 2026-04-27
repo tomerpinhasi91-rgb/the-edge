@@ -3,7 +3,8 @@ import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
 import { callAI, serperSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON } from '../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
-import { initials, cleanDomain } from '../lib/helpers'
+import { initials, cleanDomain, loadProfile } from '../lib/helpers'
+import { loadICP, scoreProspectICP, linkedInSearchStrings, buildICPContext } from '../lib/icp'
 import Spinner from '../components/ui/Spinner'
 
 // ── PWA Install Banner ───────────────────────────────────────────
@@ -74,9 +75,11 @@ export default function LeadRoomView({ setView, setActiveId }) {
   const [emailQuery, setEmailQuery] = useState('')
 
   const TABS = [
-    { key: 'prospect', label: '🎯 Prospect finder' },
-    { key: 'research', label: '🔍 Company research' },
-    { key: 'email', label: '✉ Email finder' },
+    { key: 'prospect', label: '🎯 Prospects' },
+    { key: 'research', label: '🔍 Research' },
+    { key: 'email', label: '✉ Emails' },
+    { key: 'market', label: '📊 Market intel' },
+    { key: 'strategy', label: '🗺 Strategy' },
     { key: 'saved', label: 'Saved (' + leads.length + ')' },
   ]
 
@@ -99,10 +102,19 @@ export default function LeadRoomView({ setView, setActiveId }) {
         {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} goToResearch={goToResearch} goToEmail={goToEmail} />}
         {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} goToEmail={goToEmail} initialQuery={researchQuery} />}
         {tab === 'email' && <EmailFinder user={user} saveAccount={saveAccount} showToast={showToast} leads={leads} initialQuery={emailQuery} />}
+        {tab === 'market' && <MarketIntelTab user={user} showToast={showToast} />}
+        {tab === 'strategy' && <StrategyTab user={user} leads={leads} setTab={setTab} setView={setView} setActiveId={setActiveId} />}
         {tab === 'saved' && <SavedLeads leads={leads} deleteAccount={deleteAccount} setActiveId={setActiveId} setView={setView} showToast={showToast} />}
       </div>
     </>
   )
+}
+
+// ICP fit badge colours
+const ICP_BADGE = {
+  strong:   { bg: '#E1F5EE', color: '#0F6E56', label: '✓ Strong ICP' },
+  possible: { bg: '#FAEEDA', color: '#BA7517', label: '~ Possible fit' },
+  low:      { bg: '#F3F4F6', color: '#9ca3af', label: 'Low fit' },
 }
 
 // ── Prospect Finder ──────────────────────────────────────────────
@@ -112,6 +124,17 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
   const [loading, setLoading] = useState(false)
   const [prospects, setProspects] = useState(() => lsGet(LS_PROSPECTS)?.results || [])
   const [status, setStatus] = useState(() => lsGet(LS_PROSPECTS) ? 'Showing last search — search again to refresh' : '')
+
+  const icp = loadICP(user?.id)
+  const hasICP = icp && icp.personas && icp.personas.some(p => p.industries || p.name)
+
+  // Score + sort prospects against ICP
+  const applyICP = (list) => {
+    if (!hasICP) return list
+    return list
+      .map(p => ({ ...p, icpFit: scoreProspectICP(p, icp) }))
+      .sort((a, b) => (b.icpFit?.score || 0) - (a.icpFit?.score || 0))
+  }
 
   const CHIPS = ['food manufacturers SA', 'cold chain logistics Adelaide', 'organic produce suppliers', 'packaging companies Melbourne', 'meat processors Queensland']
 
@@ -123,9 +146,10 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
 
     if (isDemoUser(user)) {
       await delay(1500)
-      setProspects(DEMO_PROSPECTS)
-      lsSet(LS_PROSPECTS, { results: DEMO_PROSPECTS })
-      setStatus('Found ' + DEMO_PROSPECTS.length + ' companies matching "' + cat + '" in ' + loc)
+      const scored = applyICP(DEMO_PROSPECTS)
+      setProspects(scored)
+      lsSet(LS_PROSPECTS, { results: scored })
+      setStatus('Found ' + scored.length + ' companies matching "' + cat + '" in ' + loc + (hasICP ? ' — sorted by ICP fit' : ''))
       setLoading(false); return
     }
 
@@ -150,15 +174,26 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
           found.push({ name, description: r.snippet || '', website: 'https://' + domain })
         } catch (e) {}
       })
-      setProspects(found.slice(0, 12))
-      lsSet(LS_PROSPECTS, { results: found.slice(0, 12) })
-      setStatus(found.length > 0 ? 'Found ' + Math.min(found.length, 12) + ' companies matching "' + cat + '" in ' + loc : 'No companies found — try different keywords')
+      const scored = applyICP(found.slice(0, 12))
+      setProspects(scored)
+      lsSet(LS_PROSPECTS, { results: scored })
+      setStatus(found.length > 0
+        ? 'Found ' + Math.min(found.length, 12) + ' companies matching "' + cat + '" in ' + loc + (hasICP ? ' — sorted by ICP fit' : '')
+        : 'No companies found — try different keywords')
     } catch (e) { setStatus('Search failed: ' + e.message); showToast(e.message, 'error') }
     setLoading(false)
   }
 
   return (
     <div>
+      {/* ICP notice if configured */}
+      {hasICP && (
+        <div style={{ background: '#E6F1FB', border: '0.5px solid #B5D4F4', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#185FA5', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span>🎯</span>
+          <span>ICP scoring active — results are sorted by fit with your Ideal Customer Profile</span>
+        </div>
+      )}
+
       <div className="ai-panel" style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>Find companies by industry, product or service — get a list you can research and add to your pipeline</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -174,14 +209,25 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
 
       {prospects.map((p, i) => {
         const domain = p.website ? p.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : ''
+        const badge = p.icpFit && p.icpFit.fit !== 'none' ? ICP_BADGE[p.icpFit.fit] : null
         return (
           <div key={i} style={{ background: 'white', border: '0.5px solid #e5e5e5', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#e1f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0F6E56', flexShrink: 0 }}>{initials(p.name)}</div>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: '#E6F1FB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#0078D4', flexShrink: 0 }}>{initials(p.name)}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{p.name}</div>
-              {p.type && <div style={{ fontSize: 11, color: '#0F6E56', marginBottom: 2 }}>{p.type}</div>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                <span style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span>
+                {badge && (
+                  <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 20, background: badge.bg, color: badge.color }}>
+                    {badge.label}
+                  </span>
+                )}
+              </div>
+              {p.type && <div style={{ fontSize: 11, color: '#0078D4', marginBottom: 2 }}>{p.type}</div>}
               {p.description && <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5 }}>{p.description.slice(0, 160)}{p.description.length > 160 ? '…' : ''}</div>}
               {p.website && <a href={p.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>{p.website.replace('https://', '')}</a>}
+              {badge && p.icpFit.reasons.length > 0 && (
+                <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 3 }}>{p.icpFit.reasons.join(' · ')}</div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' }}>
               <button className="btn btn-primary btn-sm" onClick={() => goToResearch(p.name)} style={{ fontSize: 11 }}>🔍 Research</button>
@@ -190,6 +236,13 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
           </div>
         )
       })}
+
+      {!hasICP && prospects.length === 0 && !loading && (
+        <div style={{ background: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: 12, padding: '20px', textAlign: 'center', marginTop: 8 }}>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>💡 Set up your ICP in Profile → ICP tab</div>
+          <div style={{ fontSize: 12, color: '#9ca3af' }}>Prospects will be automatically scored and sorted by fit</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -472,6 +525,29 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
 
           {/* Secondary: LinkedIn / manual contact search */}
           <ContactFinder profile={profile} profileDomain={profileDomain} goToEmail={goToEmail} user={user} showToast={showToast} />
+
+          {/* Stage 5 — ICP-targeted LinkedIn search strings */}
+          {(() => {
+            const icp = loadICP(user?.id)
+            const strings = linkedInSearchStrings(profile.name, icp)
+            if (strings.length === 0) return null
+            return (
+              <div className="card" style={{ marginTop: 12, border: '0.5px solid #B5D4F4', background: '#F8FBFF' }}>
+                <div className="card-title" style={{ color: '#185FA5' }}>🔗 LinkedIn search strings — ICP targeted</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>Click to open Google and find decision-makers matching your ICP personas</div>
+                {strings.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < strings.length - 1 ? '0.5px solid #e5e5e5' : 'none' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.query}</div>
+                    </div>
+                    <a href={s.googleUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ fontSize: 10, flexShrink: 0 }}>Search →</a>
+                    <button className="btn btn-secondary btn-sm" style={{ fontSize: 10, flexShrink: 0 }} onClick={() => navigator.clipboard.writeText(s.query).then(() => showToast('Copied', 'success'))}>Copy</button>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>
@@ -822,6 +898,312 @@ function EmailFinder({ user, saveAccount, showToast, leads, initialQuery }) {
           No emails found. Try the exact company domain (e.g. <strong>company.com.au</strong>)
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Market Intel Tab — Stages 1 (Market Research) + 2 (TAM) ────
+function MarketIntelTab({ user, showToast }) {
+  const [industry, setIndustry] = useState('')
+  const [region, setRegion] = useState('Australia')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+  const [status, setStatus] = useState('')
+
+  const CHIPS = ['food manufacturing', 'cold chain logistics', 'agriculture', 'industrial packaging', 'meat processing']
+
+  const run = async () => {
+    const ind = industry.trim()
+    if (!ind) return showToast('Enter an industry to analyse', 'error')
+    setLoading(true); setResult(null); setStatus('Searching market data...')
+
+    if (isDemoUser(user)) {
+      await delay(1800)
+      setResult({
+        industry: ind, region,
+        market_size: '$3.8B AUD',
+        cagr: '5.4% p.a.',
+        tam_estimate: '~$42M reachable (SMB segment, 5–200 reps)',
+        trends: [
+          { title: 'Supply chain digitalisation accelerating', body: 'Post-COVID pressure on procurement teams to adopt AI-driven tools is driving 2× the usual software evaluation cycles.', signal: 'opportunity' },
+          { title: 'Labour costs squeezing margins', body: 'Rising wages are pushing manufacturers to automate sales intelligence tasks previously done manually.', signal: 'growth' },
+          { title: 'CRM dissatisfaction at record high', body: 'Gartner reports 71% of sales reps find their CRM too admin-heavy — creating an opening for intelligence-first tools.', signal: 'opportunity' },
+          { title: 'Consolidation risk in mid-market', body: 'M&A activity is high — some target accounts may change decision-makers within 6 months.', signal: 'risk' },
+        ],
+        key_players: [
+          { name: 'George Weston Foods', position: 'Largest manufacturer, 4,000+ employees' },
+          { name: 'Ingham\'s Group', position: 'Poultry leader, $2.8B revenue' },
+          { name: 'Simplot Australia', position: 'Frozen food & agriculture' },
+          { name: 'Sanitarium Health Food Company', position: 'FMCG, 700+ employees' },
+          { name: 'Beak & Johnston', position: 'Meat processing, strong sales team' },
+        ],
+        buyer_insights: 'Decision makers are typically Sales Directors or National Sales Managers aged 40–55. They value ROI clarity and are skeptical of "another tool." Best approached with a specific signal about their market — not a generic pitch.',
+        best_time_to_reach: 'Q1 (Jan–Mar) when budgets reset, and August–September before end-of-year planning.',
+      })
+      setStatus('')
+      setLoading(false); return
+    }
+
+    try {
+      const [r1, r2, r3] = await Promise.allSettled([
+        serperSearch(ind + ' market size Australia 2025 2026 revenue'),
+        serperSearch(ind + ' industry trends ' + region + ' growth forecast digital'),
+        serperSearch(ind + ' top companies ' + region + ' largest players'),
+      ])
+
+      setStatus('Analysing with AI...')
+
+      const fmt = (r, label) => {
+        if (r.status !== 'fulfilled') return ''
+        const org = (r.value.organic || []).slice(0, 4)
+        const news = (r.value.news || []).slice(0, 3)
+        let s = label + ':\n'
+        org.forEach(o => { s += o.title + ': ' + (o.snippet || '').slice(0, 200) + '\n' })
+        news.forEach(n => { s += '[NEWS] ' + n.title + ': ' + (n.snippet || '').slice(0, 150) + '\n' })
+        return s + '\n'
+      }
+
+      const context = fmt(r1, 'MARKET SIZE & REVENUE') + fmt(r2, 'TRENDS & GROWTH') + fmt(r3, 'KEY PLAYERS')
+
+      const prompt = `You are a market research analyst. Build a market intelligence report for the "${ind}" industry in ${region}. Return ONLY valid JSON (no markdown): {"market_size":"e.g. $4.2B AUD","cagr":"e.g. 6.2% p.a.","tam_estimate":"total addressable market for a B2B sales intelligence tool targeting this space","trends":[{"title":string,"body":string,"signal":"growth"|"risk"|"opportunity"}],"key_players":[{"name":string,"position":string}],"buyer_insights":"2-3 sentences about decision makers and what they care about","best_time_to_reach":"when buyers are most active"}`
+
+      const raw = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1200)
+      const parsed = extractJSON(raw)
+      if (parsed) {
+        setResult({ ...parsed, industry: ind, region })
+        setStatus('')
+      } else {
+        setStatus('Could not parse market data — try again')
+      }
+    } catch (e) { showToast(e.message, 'error'); setStatus('Search failed') }
+    setLoading(false)
+  }
+
+  const SIGNAL_STYLE = {
+    growth:      { bg: '#E1F5EE', color: '#0F6E56' },
+    opportunity: { bg: '#E6F1FB', color: '#185FA5' },
+    risk:        { bg: '#FCEBEB', color: '#A32D2D' },
+  }
+
+  return (
+    <div>
+      <div className="ai-panel" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>
+          Get market size, TAM estimate, growth trends, key players and buyer insights for any industry — in seconds
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <input className="form-input" style={{ flex: 2, minWidth: 160 }} placeholder="e.g. food manufacturing, cold chain logistics, agribusiness..." value={industry} onChange={e => setIndustry(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
+          <input className="form-input" style={{ width: 150 }} placeholder="Region" value={region} onChange={e => setRegion(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} />
+          <button className="btn btn-primary" onClick={run} disabled={loading}>{loading ? <><Spinner /> Analysing…</> : 'Analyse market'}</button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {CHIPS.map((c, i) => <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => setIndustry(c)}>{c}</button>)}
+        </div>
+        {status && <div style={{ fontSize: 12, marginTop: 8, color: '#9ca3af' }}>{status}</div>}
+      </div>
+
+      {loading && (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '40px 20px', color: '#6b7280', fontSize: 13 }}>
+          <Spinner /> Analysing {industry} market...
+        </div>
+      )}
+
+      {result && (
+        <div>
+          {/* Stage 2 — TAM metrics */}
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 14 }}>{result.industry} — {result.region}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {[
+                ['Market size', result.market_size, '#0078D4'],
+                ['Growth (CAGR)', result.cagr, '#1D9E75'],
+                ['Your TAM', result.tam_estimate, '#F97316'],
+              ].map(([label, val, color]) => (
+                <div key={label} style={{ background: '#F3F4F6', borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color, lineHeight: 1.3 }}>{val || 'N/A'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Stage 1 — Market trends */}
+          {(result.trends || []).length > 0 && (
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="card-title">Market trends</div>
+              {result.trends.map((t, i) => {
+                const style = SIGNAL_STYLE[t.signal] || SIGNAL_STYLE.opportunity
+                return (
+                  <div key={i} style={{ padding: '10px 12px', borderRadius: 8, background: style.bg, marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: style.color, marginBottom: 3 }}>{t.title}</div>
+                    <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{t.body}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Key players + buyer insights */}
+          <div className="grid-2" style={{ marginBottom: 12 }}>
+            {(result.key_players || []).length > 0 && (
+              <div className="card">
+                <div className="card-title">Key players</div>
+                {result.key_players.map((p, i) => (
+                  <div key={i} style={{ fontSize: 13, padding: '6px 0', borderBottom: i < result.key_players.length - 1 ? '0.5px solid #f3f3f3' : 'none' }}>
+                    <div style={{ fontWeight: 500 }}>{p.name}</div>
+                    {p.position && <div style={{ fontSize: 11, color: '#9ca3af' }}>{p.position}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="card">
+              <div className="card-title">Buyer insights</div>
+              <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 10 }}>{result.buyer_insights}</div>
+              {result.best_time_to_reach && (
+                <div style={{ background: '#E6F1FB', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: '#185FA5' }}>
+                  📅 Best time to reach: {result.best_time_to_reach}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Strategy Tab — Stage 7 (GTM Summary) ────────────────────────
+function StrategyTab({ user, leads, setTab, setView, setActiveId }) {
+  const icp = loadICP(user?.id)
+  const profile = loadProfile(user?.id)
+  const hasICP = icp && icp.personas && icp.personas.some(p => p.name || p.industries)
+  const topLeads = [...leads].sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 5)
+  const strongLeads = leads.filter(l => l.score >= 70).length
+  const avgScore = leads.length > 0 ? Math.round(leads.reduce((sum, l) => sum + (l.score || 0), 0) / leads.length) : 0
+
+  const STAGE_STATUS = [
+    { stage: 1, label: 'Market research', desc: 'Analyse your target industry', done: false, action: () => setTab('market'), cta: 'Analyse market →' },
+    { stage: 2, label: 'TAM mapping', desc: 'Understand total addressable market', done: false, action: () => setTab('market'), cta: 'See TAM →' },
+    { stage: 3, label: 'ICP builder', desc: 'Define personas + 4 pain layers', done: hasICP, action: () => setView('profile'), cta: hasICP ? 'Edit ICP →' : 'Set up ICP →' },
+    { stage: 4, label: 'Account scoring', desc: 'Prospects scored by ICP fit', done: hasICP && leads.length > 0, action: () => setTab('prospect'), cta: 'Find prospects →' },
+    { stage: 5, label: 'Contact sourcing', desc: 'LinkedIn search strings + stakeholders', done: leads.length > 0, action: () => setTab('research'), cta: 'Research company →' },
+    { stage: 6, label: 'Messaging framework', desc: 'Email variants per persona', done: !!(icp?.messagingFramework), action: () => setView('profile'), cta: 'Add messaging →' },
+    { stage: 7, label: 'GTM summary', desc: 'You\'re here — full strategy view', done: true, action: null, cta: null },
+  ]
+
+  return (
+    <div>
+      {/* GTM Progress */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div className="card-title">🗺 GTM Strategy — 7 stages</div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          {STAGE_STATUS.map(s => (
+            <div key={s.stage} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: s.done ? '#E1F5EE' : '#F9FAFB', border: '0.5px solid ' + (s.done ? '#9FE1CB' : '#e5e5e5') }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: s.done ? '#0F6E56' : '#e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: s.done ? 'white' : '#9ca3af', flexShrink: 0 }}>
+                {s.done ? '✓' : s.stage}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: s.done ? '#0F6E56' : '#374151' }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: '#9ca3af' }}>{s.desc}</div>
+              </div>
+              {s.action && (
+                <button className="btn btn-secondary btn-sm" style={{ fontSize: 10, flexShrink: 0 }} onClick={s.action}>{s.cta}</button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pipeline snapshot */}
+      {leads.length > 0 && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div className="card-title">📊 Pipeline snapshot</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
+            {[
+              ['Saved leads', leads.length, '#0078D4'],
+              ['Avg ICP score', avgScore || '—', avgScore >= 70 ? '#0F6E56' : avgScore >= 50 ? '#BA7517' : '#A32D2D'],
+              ['Strong fit (70+)', strongLeads, '#0F6E56'],
+            ].map(([label, val, color]) => (
+              <div key={label} style={{ background: '#F3F4F6', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color }}>{val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Top leads */}
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Top leads by score</div>
+          {topLeads.map((lead, i) => {
+            const scoreColor = (lead.score || 0) >= 80 ? '#0F6E56' : (lead.score || 0) >= 60 ? '#BA7517' : '#9ca3af'
+            return (
+              <div key={lead.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < topLeads.length - 1 ? '0.5px solid #f3f3f3' : 'none', cursor: 'pointer' }}
+                onClick={() => { setActiveId(lead.id); setView('lead') }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: scoreColor, flexShrink: 0 }}>
+                  {lead.score || '?'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{lead.name}</div>
+                  <div style={{ fontSize: 11, color: '#9ca3af' }}>{lead.industry || ''}</div>
+                </div>
+                <span style={{ fontSize: 12, color: '#9ca3af' }}>→</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ICP Summary */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div className="card-title" style={{ margin: 0 }}>🎯 ICP</div>
+          <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => setView('profile')}>
+            {hasICP ? 'Edit' : 'Set up'}
+          </button>
+        </div>
+        {hasICP ? (
+          <div>
+            {icp.targetGeography && <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>📍 {icp.targetGeography}</div>}
+            {icp.targetRevenue && <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>💰 {icp.targetRevenue}</div>}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {icp.personas.filter(p => p.name || p.industries).map((p, i) => (
+                <div key={i} style={{ background: '#E6F1FB', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: '#185FA5', fontWeight: 500 }}>
+                  {p.name || p.industries?.split(',')[0] || 'Persona ' + (i + 1)}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: '#9ca3af' }}>No ICP configured. Define your target personas to unlock scoring, messaging and contact sourcing.</div>
+        )}
+      </div>
+
+      {/* Messaging framework */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div className="card-title" style={{ margin: 0 }}>✉️ Messaging framework</div>
+          <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => setView('profile')}>Edit</button>
+        </div>
+        {icp?.messagingFramework ? (
+          <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{icp.messagingFramework}</div>
+        ) : (
+          <div style={{ fontSize: 13, color: '#9ca3af' }}>Add your messaging framework in Profile → ICP to unlock 9-variant email generation in AI Coach.</div>
+        )}
+      </div>
+
+      {/* Quick actions */}
+      <div className="card">
+        <div className="card-title">Next actions</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            { label: '📊 Analyse a market', action: () => setTab('market') },
+            { label: '🎯 Find prospects', action: () => setTab('prospect') },
+            { label: '🔍 Research a company', action: () => setTab('research') },
+            { label: '👤 Edit ICP', action: () => setView('profile') },
+          ].map((item, i) => (
+            <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 12 }} onClick={item.action}>{item.label}</button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

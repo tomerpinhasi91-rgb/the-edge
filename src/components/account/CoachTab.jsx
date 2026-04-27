@@ -4,6 +4,7 @@ import { uid } from '../../lib/supabase'
 import { callAI } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_COACH, delay } from '../../lib/demo'
 import { loadProfile, buildRepContext } from '../../lib/helpers'
+import { loadICP, buildICPContext } from '../../lib/icp'
 import Spinner from '../ui/Spinner'
 
 export default function CoachTab({ account }) {
@@ -61,9 +62,11 @@ export default function CoachTab({ account }) {
 
     try {
       const { repName, repCtx } = buildRepContext(loadProfile(user?.id))
+      const icpCtx = buildICPContext(loadICP(user?.id))
       let systemPrompt = 'You are an elite B2B sales coach. Give specific, actionable, deal-specific coaching. Use all account context provided. Be direct, practical and concise.'
       if (repCtx) systemPrompt += '\n\nREP PROFILE: ' + repCtx
-      if (repName) systemPrompt += ' When writing emails or call scripts, always sign off as ' + repName + '.'
+      if (icpCtx) systemPrompt += '\n\nICP & MESSAGING FRAMEWORK:\n' + icpCtx
+      if (repName) systemPrompt += '\n\nWhen writing emails or call scripts, always sign off as ' + repName + '.'
       const result = await callAI(
         systemPrompt,
         [{ role: 'user', content: 'ACCOUNT CONTEXT:\n' + buildContext() + '\n\nCOACHING REQUEST: ' + q }],
@@ -89,6 +92,7 @@ export default function CoachTab({ account }) {
     { label: '⚠️ Risk analysis', prompt: 'What are the top 3 risks in this deal and what should I do about each one right now?' },
     { label: '✉️ Draft outreach', prompt: 'Write a personalised outreach email to the primary contact that will get a response.' },
     { label: '📅 Meeting agenda', prompt: 'Build me a tight meeting agenda for my next session with this account. Include a closing ask.' },
+    { label: '✉️×9 Email variants', prompt: 'Generate 9 cold outreach email variants for the primary decision-maker at this account. Use my ICP messaging framework. Structure as a 3×3 matrix:\n- Rows: Short (3 lines), Medium (5–7 lines), Long (8–10 lines)\n- Columns: Generic angle, Specific to their industry signals, Hyper-personalised to their situation\n\nLabel each clearly. Each email must have a subject line and body. Make them different enough that I can A/B test them.' },
   ]
 
   return (
