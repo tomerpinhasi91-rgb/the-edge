@@ -4,6 +4,7 @@ import { sb, uid } from '../lib/supabase'
 import { getTokenStats } from '../lib/ai'
 import { initials, loadProfile } from '../lib/helpers'
 import { loadICP, saveICP, EMPTY_ICP, EMPTY_PERSONA, ICP_SIZES } from '../lib/icp'
+import { callAI, extractJSON } from '../lib/ai'
 
 const DEAL_SIZES = ['Under $10K', '$10K–$50K', '$50K–$150K', '$150K–$500K', '$500K+']
 const SALES_CYCLES = ['Under 1 month', '1–3 months', '3–6 months', '6–12 months', '12+ months']
@@ -136,6 +137,39 @@ export default function ProfileView() {
     await new Promise(r => setTimeout(r, 300))
     setSaving(false)
     showToast('ICP saved — Prospect Finder will now score companies', 'success')
+  }
+
+  const [aiSuggesting, setAISuggesting] = useState(false)
+
+  const aiSuggestICP = async () => {
+    const ctx = [
+      profile.whatYouSell ? 'Product/service: ' + profile.whatYouSell : '',
+      profile.industry ? 'Seller industry: ' + profile.industry : '',
+      profile.territory ? 'Territory: ' + profile.territory : '',
+      profile.targetMarket ? 'Target market: ' + profile.targetMarket : '',
+      profile.typicalDealSize ? 'Deal size: ' + profile.typicalDealSize : '',
+      profile.averageSalesCycle ? 'Sales cycle: ' + profile.averageSalesCycle : '',
+    ].filter(Boolean).join('\n')
+    if (!ctx) return showToast('Fill in your Profile first — what you sell, industry, territory', 'error')
+    setAISuggesting(true)
+    try {
+      const prompt = `You are a B2B sales strategist. Based on the rep profile below, suggest an Ideal Customer Profile (ICP) with 2 specific buyer personas. Return ONLY valid JSON:\n{"targetGeography":"string","targetRevenue":"string","messagingFramework":"string (3-4 sentences on core message and what makes them different)","personas":[{"name":"persona name e.g. Sales Director at Mid-Market Manufacturer","titles":"comma-separated job titles","industries":"comma-separated industries","size":"employee range e.g. 51–200","painOperational":"specific operational pain","painStrategic":"specific strategic pain","painPersonal":"specific personal pain","painFinancial":"financial impact of the problem","hook":"1-line opening hook","valueProposition":"core value prop for this persona"}]}`
+      const raw = await callAI(prompt, [{ role: 'user', content: 'Rep profile:\n' + ctx }], 1200)
+      const parsed = extractJSON(raw)
+      if (parsed && parsed.personas) {
+        setICP(prev => ({
+          ...prev,
+          targetGeography: parsed.targetGeography || prev.targetGeography,
+          targetRevenue: parsed.targetRevenue || prev.targetRevenue,
+          messagingFramework: parsed.messagingFramework || prev.messagingFramework,
+          personas: parsed.personas.map(p => ({ ...EMPTY_PERSONA(), ...p })),
+        }))
+        showToast('AI suggestions generated — review and save', 'success')
+      } else {
+        showToast('Could not generate suggestions — try again', 'error')
+      }
+    } catch (e) { showToast(e.message, 'error') }
+    setAISuggesting(false)
   }
 
   const addPersona = () => {
@@ -316,9 +350,19 @@ export default function ProfileView() {
         {/* ── ICP TAB — Stage 3 ── */}
         {activeTab === 'icp' && (
           <>
-            <div style={{ background: 'var(--color-primary-light)', border: '0.5px solid var(--color-primary-border)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--color-primary)' }}>
-              <strong>🎯 Your Ideal Customer Profile</strong> — define exactly who you target. The app then scores every prospect, generates targeted messaging, and focuses all AI responses on the right buyers. Up to 3 personas.
+            <div style={{ background: 'var(--color-primary-light)', border: '0.5px solid var(--color-primary-border)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--color-primary)', display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1 }}>
+                <strong>🎯 Your Ideal Customer Profile</strong> — define exactly who you target. The app then scores every prospect, generates targeted messaging, and focuses all AI responses on the right buyers. Up to 3 personas.
+              </div>
+              <button className="btn btn-primary btn-sm" style={{ flexShrink: 0, whiteSpace: 'nowrap' }} onClick={aiSuggestICP} disabled={aiSuggesting}>
+                {aiSuggesting ? '🤖 Thinking...' : '🤖 AI suggest'}
+              </button>
             </div>
+            {aiSuggesting && (
+              <div style={{ background: '#f3f4f6', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 12, color: '#6b7280' }}>
+                Analysing your profile and generating ICP suggestions... this takes about 10 seconds.
+              </div>
+            )}
 
             {/* Global target settings */}
             <div className="card">

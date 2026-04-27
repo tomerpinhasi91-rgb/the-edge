@@ -5,6 +5,7 @@ import { callAI, serperSearch, tavilySearch, hunterSearch, hunterPersonEmail, sc
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
 import { initials, cleanDomain, loadProfile } from '../lib/helpers'
 import { loadICP, scoreProspectICP, linkedInSearchStrings, buildICPContext } from '../lib/icp'
+import MarketIntelPanel from '../components/shared/MarketIntelPanel'
 import Spinner from '../components/ui/Spinner'
 
 // ── PWA Install Banner ───────────────────────────────────────────
@@ -99,7 +100,7 @@ export default function LeadRoomView({ setView, setActiveId }) {
         {TABS.map(t => <button key={t.key} className={'tab-btn' + (tab === t.key ? ' active' : '')} onClick={() => setTab(t.key)}>{t.label}</button>)}
       </div>
       <div className="main-content">
-        {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} goToResearch={goToResearch} goToEmail={goToEmail} />}
+        {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} goToResearch={goToResearch} goToEmail={goToEmail} setView={setView} />}
         {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} goToEmail={goToEmail} initialQuery={researchQuery} />}
         {tab === 'email' && <EmailFinder user={user} saveAccount={saveAccount} showToast={showToast} leads={leads} initialQuery={emailQuery} />}
         {tab === 'market' && <MarketIntelTab user={user} showToast={showToast} />}
@@ -118,7 +119,7 @@ const ICP_BADGE = {
 }
 
 // ── Prospect Finder ──────────────────────────────────────────────
-function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
+function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
   const [category, setCategory] = useState('')
   const [location, setLocation] = useState('Australia')
   const [loading, setLoading] = useState(false)
@@ -237,10 +238,13 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail }) {
         )
       })}
 
-      {!hasICP && prospects.length === 0 && !loading && (
-        <div style={{ background: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: 12, padding: '20px', textAlign: 'center', marginTop: 8 }}>
-          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>💡 Set up your ICP in Profile → ICP tab</div>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>Prospects will be automatically scored and sorted by fit</div>
+      {!hasICP && (
+        <div style={{ background: '#FAEEDA', border: '0.5px solid #FAC775', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#BA7517', marginBottom: 2 }}>🎯 ICP not configured — prospects are not being scored</div>
+            <div style={{ fontSize: 12, color: '#BA7517', opacity: 0.85 }}>Set up your Ideal Customer Profile to see fit badges (Strong / Possible / Low) and get results sorted by match</div>
+          </div>
+          <button className="btn btn-sm" style={{ background: '#BA7517', color: 'white', flexShrink: 0 }} onClick={() => setView('profile')}>Set up ICP →</button>
         </div>
       )}
     </div>
@@ -513,6 +517,11 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
             </div>
           )}
 
+          {/* ── Market Intel (inline — Stages 1+2) ── */}
+          {profile.industry && (
+            <InlineMarketIntel industry={profile.industry} user={user} showToast={showToast} />
+          )}
+
           {/* Key Stakeholders */}
           {(profile.stakeholders || []).length > 0 && (
             <div className="card" style={{ marginBottom: 12 }}>
@@ -526,19 +535,31 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
           {/* Secondary: LinkedIn / manual contact search */}
           <ContactFinder profile={profile} profileDomain={profileDomain} goToEmail={goToEmail} user={user} showToast={showToast} />
 
-          {/* Stage 5 — ICP-targeted LinkedIn search strings */}
+          {/* Stage 5 — LinkedIn contact sourcing strings */}
           {(() => {
             const icp = loadICP(user?.id)
-            const strings = linkedInSearchStrings(profile.name, icp)
-            if (strings.length === 0) return null
+            const icpStrings = linkedInSearchStrings(profile.name, icp)
+            // Fallback generic strings when no ICP configured
+            const GENERIC_TITLES = ['CEO', 'Managing Director', 'Sales Director', 'Operations Manager', 'Procurement Manager']
+            const genericStrings = GENERIC_TITLES.slice(0, 3).map(title => ({
+              label: title,
+              query: '"' + title + '" "' + profile.name + '" site:linkedin.com/in',
+              googleUrl: 'https://www.google.com/search?q=' + encodeURIComponent('"' + title + '" "' + profile.name + '" site:linkedin.com/in'),
+            }))
+            const strings = icpStrings.length > 0 ? icpStrings : genericStrings
+            const isICP = icpStrings.length > 0
             return (
               <div className="card" style={{ marginTop: 12, border: '0.5px solid #B5D4F4', background: '#F8FBFF' }}>
-                <div className="card-title" style={{ color: '#185FA5' }}>🔗 LinkedIn search strings — ICP targeted</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>Click to open Google and find decision-makers matching your ICP personas</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <div className="card-title" style={{ color: '#185FA5', margin: 0 }}>🔗 LinkedIn contact sourcing</div>
+                  {!isICP && <span style={{ fontSize: 10, color: '#BA7517', background: '#FAEEDA', padding: '2px 6px', borderRadius: 4 }}>Generic — set up ICP for targeted strings</span>}
+                  {isICP && <span style={{ fontSize: 10, color: '#0F6E56', background: '#E1F5EE', padding: '2px 6px', borderRadius: 4 }}>🎯 ICP targeted</span>}
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 10 }}>Click to open Google and find decision-makers at {profile.name}</div>
                 {strings.map((s, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < strings.length - 1 ? '0.5px solid #e5e5e5' : 'none' }}>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: i < strings.length - 1 ? '0.5px solid #e5e5e5' : 'none' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 1 }}>{s.label}</div>
                       <div style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.query}</div>
                     </div>
                     <a href={s.googleUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ fontSize: 10, flexShrink: 0 }}>Search →</a>
@@ -902,172 +923,34 @@ function EmailFinder({ user, saveAccount, showToast, leads, initialQuery }) {
   )
 }
 
-// ── Market Intel Tab — Stages 1 (Market Research) + 2 (TAM) ────
+// ── Inline Market Intel — collapses into a card inside Research ──
+function InlineMarketIntel({ industry, user, showToast }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="card" style={{ marginBottom: 12, border: '0.5px solid #B5D4F4', background: '#F8FBFF' }}>
+      <div role="button" onClick={() => setOpen(o => !o)} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="card-title" style={{ margin: 0, color: '#185FA5' }}>📊 Market intel — {industry}</div>
+        <span style={{ fontSize: 11, color: '#185FA5', fontWeight: 600 }}>{open ? '▲ Collapse' : '▼ Expand'}</span>
+      </div>
+      {open && (
+        <div style={{ marginTop: 14, borderTop: '0.5px solid #e5e5e5', paddingTop: 14 }}>
+          <MarketIntelPanel initialIndustry={industry} user={user} showToast={showToast} compact={true} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Market Intel Tab — full standalone tab ───────────────────────
 function MarketIntelTab({ user, showToast }) {
-  const [industry, setIndustry] = useState('')
-  const [region, setRegion] = useState('Australia')
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
-  const [status, setStatus] = useState('')
-
-  const CHIPS = ['food manufacturing', 'cold chain logistics', 'agriculture', 'industrial packaging', 'meat processing']
-
-  const run = async () => {
-    const ind = industry.trim()
-    if (!ind) return showToast('Enter an industry to analyse', 'error')
-    setLoading(true); setResult(null); setStatus('Searching market data...')
-
-    if (isDemoUser(user)) {
-      await delay(1800)
-      setResult({
-        industry: ind, region,
-        market_size: '$3.8B AUD',
-        cagr: '5.4% p.a.',
-        tam_estimate: '~$42M reachable (SMB segment, 5–200 reps)',
-        trends: [
-          { title: 'Supply chain digitalisation accelerating', body: 'Post-COVID pressure on procurement teams to adopt AI-driven tools is driving 2× the usual software evaluation cycles.', signal: 'opportunity' },
-          { title: 'Labour costs squeezing margins', body: 'Rising wages are pushing manufacturers to automate sales intelligence tasks previously done manually.', signal: 'growth' },
-          { title: 'CRM dissatisfaction at record high', body: 'Gartner reports 71% of sales reps find their CRM too admin-heavy — creating an opening for intelligence-first tools.', signal: 'opportunity' },
-          { title: 'Consolidation risk in mid-market', body: 'M&A activity is high — some target accounts may change decision-makers within 6 months.', signal: 'risk' },
-        ],
-        key_players: [
-          { name: 'George Weston Foods', position: 'Largest manufacturer, 4,000+ employees' },
-          { name: 'Ingham\'s Group', position: 'Poultry leader, $2.8B revenue' },
-          { name: 'Simplot Australia', position: 'Frozen food & agriculture' },
-          { name: 'Sanitarium Health Food Company', position: 'FMCG, 700+ employees' },
-          { name: 'Beak & Johnston', position: 'Meat processing, strong sales team' },
-        ],
-        buyer_insights: 'Decision makers are typically Sales Directors or National Sales Managers aged 40–55. They value ROI clarity and are skeptical of "another tool." Best approached with a specific signal about their market — not a generic pitch.',
-        best_time_to_reach: 'Q1 (Jan–Mar) when budgets reset, and August–September before end-of-year planning.',
-      })
-      setStatus('')
-      setLoading(false); return
-    }
-
-    try {
-      const [r1, r2, r3] = await Promise.allSettled([
-        serperSearch(ind + ' market size Australia 2025 2026 revenue'),
-        serperSearch(ind + ' industry trends ' + region + ' growth forecast digital'),
-        serperSearch(ind + ' top companies ' + region + ' largest players'),
-      ])
-
-      setStatus('Analysing with AI...')
-
-      const fmt = (r, label) => {
-        if (r.status !== 'fulfilled') return ''
-        const org = (r.value.organic || []).slice(0, 4)
-        const news = (r.value.news || []).slice(0, 3)
-        let s = label + ':\n'
-        org.forEach(o => { s += o.title + ': ' + (o.snippet || '').slice(0, 200) + '\n' })
-        news.forEach(n => { s += '[NEWS] ' + n.title + ': ' + (n.snippet || '').slice(0, 150) + '\n' })
-        return s + '\n'
-      }
-
-      const context = fmt(r1, 'MARKET SIZE & REVENUE') + fmt(r2, 'TRENDS & GROWTH') + fmt(r3, 'KEY PLAYERS')
-
-      const prompt = `You are a market research analyst. Build a market intelligence report for the "${ind}" industry in ${region}. Return ONLY valid JSON (no markdown): {"market_size":"e.g. $4.2B AUD","cagr":"e.g. 6.2% p.a.","tam_estimate":"total addressable market for a B2B sales intelligence tool targeting this space","trends":[{"title":string,"body":string,"signal":"growth"|"risk"|"opportunity"}],"key_players":[{"name":string,"position":string}],"buyer_insights":"2-3 sentences about decision makers and what they care about","best_time_to_reach":"when buyers are most active"}`
-
-      const raw = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1200)
-      const parsed = extractJSON(raw)
-      if (parsed) {
-        setResult({ ...parsed, industry: ind, region })
-        setStatus('')
-      } else {
-        setStatus('Could not parse market data — try again')
-      }
-    } catch (e) { showToast(e.message, 'error'); setStatus('Search failed') }
-    setLoading(false)
-  }
-
-  const SIGNAL_STYLE = {
-    growth:      { bg: '#E1F5EE', color: '#0F6E56' },
-    opportunity: { bg: '#E6F1FB', color: '#185FA5' },
-    risk:        { bg: '#FCEBEB', color: '#A32D2D' },
-  }
-
   return (
     <div>
       <div className="ai-panel" style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 10 }}>
+        <div style={{ fontSize: 13, color: '#6b7280' }}>
           Get market size, TAM estimate, growth trends, key players and buyer insights for any industry — in seconds
         </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          <input className="form-input" style={{ flex: 2, minWidth: 160 }} placeholder="e.g. food manufacturing, cold chain logistics, agribusiness..." value={industry} onChange={e => setIndustry(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} autoFocus />
-          <input className="form-input" style={{ width: 150 }} placeholder="Region" value={region} onChange={e => setRegion(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()} />
-          <button className="btn btn-primary" onClick={run} disabled={loading}>{loading ? <><Spinner /> Analysing…</> : 'Analyse market'}</button>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {CHIPS.map((c, i) => <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => setIndustry(c)}>{c}</button>)}
-        </div>
-        {status && <div style={{ fontSize: 12, marginTop: 8, color: '#9ca3af' }}>{status}</div>}
       </div>
-
-      {loading && (
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '40px 20px', color: '#6b7280', fontSize: 13 }}>
-          <Spinner /> Analysing {industry} market...
-        </div>
-      )}
-
-      {result && (
-        <div>
-          {/* Stage 2 — TAM metrics */}
-          <div className="card" style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 14 }}>{result.industry} — {result.region}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {[
-                ['Market size', result.market_size, '#0078D4'],
-                ['Growth (CAGR)', result.cagr, '#1D9E75'],
-                ['Your TAM', result.tam_estimate, '#F97316'],
-              ].map(([label, val, color]) => (
-                <div key={label} style={{ background: '#F3F4F6', borderRadius: 8, padding: '10px 14px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color, lineHeight: 1.3 }}>{val || 'N/A'}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Stage 1 — Market trends */}
-          {(result.trends || []).length > 0 && (
-            <div className="card" style={{ marginBottom: 12 }}>
-              <div className="card-title">Market trends</div>
-              {result.trends.map((t, i) => {
-                const style = SIGNAL_STYLE[t.signal] || SIGNAL_STYLE.opportunity
-                return (
-                  <div key={i} style={{ padding: '10px 12px', borderRadius: 8, background: style.bg, marginBottom: 8 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: style.color, marginBottom: 3 }}>{t.title}</div>
-                    <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{t.body}</div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Key players + buyer insights */}
-          <div className="grid-2" style={{ marginBottom: 12 }}>
-            {(result.key_players || []).length > 0 && (
-              <div className="card">
-                <div className="card-title">Key players</div>
-                {result.key_players.map((p, i) => (
-                  <div key={i} style={{ fontSize: 13, padding: '6px 0', borderBottom: i < result.key_players.length - 1 ? '0.5px solid #f3f3f3' : 'none' }}>
-                    <div style={{ fontWeight: 500 }}>{p.name}</div>
-                    {p.position && <div style={{ fontSize: 11, color: '#9ca3af' }}>{p.position}</div>}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="card">
-              <div className="card-title">Buyer insights</div>
-              <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, marginBottom: 10 }}>{result.buyer_insights}</div>
-              {result.best_time_to_reach && (
-                <div style={{ background: '#E6F1FB', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: '#185FA5' }}>
-                  📅 Best time to reach: {result.best_time_to_reach}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <MarketIntelPanel user={user} showToast={showToast} />
     </div>
   )
 }

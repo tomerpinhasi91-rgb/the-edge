@@ -7,6 +7,7 @@ import IntelligenceTab from '../components/account/IntelligenceTab'
 import CoachTab from '../components/account/CoachTab'
 import Modal from '../components/ui/Modal'
 import { STAGE_LABELS } from '../lib/helpers'
+import MarketIntelPanel from '../components/shared/MarketIntelPanel'
 
 const STAGES = ['qualify', 'proposal', 'negotiate', 'closing', 'won', 'lost']
 
@@ -39,7 +40,7 @@ function NotesTab({ account }) {
 }
 
 export default function AccountView({ account, setView }) {
-  const { saveAccount, deleteAccount, showToast } = useApp()
+  const { saveAccount, deleteAccount, showToast, user } = useApp()
   const [tab, setTab] = useState('dashboard')
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState(null)
@@ -67,6 +68,7 @@ export default function AccountView({ account, setView }) {
   const TABS = [
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'intelligence', label: 'Intelligence' },
+    { key: 'market', label: '📊 Market' },
     { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
     { key: 'notes', label: 'Notes' },
@@ -98,6 +100,11 @@ export default function AccountView({ account, setView }) {
       {/* Tab content */}
       {tab === 'dashboard' && <DashboardTab account={account} onEdit={openEdit} />}
       {tab === 'intelligence' && <IntelligenceTab account={account} />}
+      {tab === 'market' && (
+        <div className="main-content">
+          <MarketIntelPanel initialIndustry={account.industry || ''} user={user} showToast={showToast} />
+        </div>
+      )}
       {tab === 'activities' && <ActivitiesTab account={account} />}
       {tab === 'contacts' && <ContactsTab account={account} />}
       {tab === 'notes' && <NotesTab account={account} />}
