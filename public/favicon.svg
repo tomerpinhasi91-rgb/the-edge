@@ -1,0 +1,7 @@
+<svg width="16" height="16" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <title>The Edge — Favicon</title>
+  <rect x="2" y="2" width="76" height="76" rx="18" fill="#1B2A4A"/>
+  <text x="22" y="52" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="700" fill="#FFFFFF">D</text>
+  <rect x="37" y="12" width="3" height="56" rx="1.5" fill="#F97316"/>
+  <text x="58" y="52" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="700" fill="#0078D4">G</text>
+</svg>

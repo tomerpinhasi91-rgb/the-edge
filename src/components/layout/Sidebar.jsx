@@ -1,5 +1,7 @@
 import { useApp } from '../../lib/context'
 import { initials } from '../../lib/helpers'
+import LogoMark from '../ui/LogoMark'
+import tenant from '../../lib/tenant'
 
 export default function Sidebar({ view, setView, activeId, setActiveId }) {
   const { user, leads, dealAccounts, isAdmin } = useApp()
@@ -9,10 +11,10 @@ export default function Sidebar({ view, setView, activeId, setActiveId }) {
     <div className="sidebar">
       <div className="sidebar-top">
         <div className="logo">
-          <div className="logo-mark">te</div>
-          <span className="logo-name">the edge</span>
+          <LogoMark size={28} variant="dark" />
+          <span className="logo-name">{tenant.appName}</span>
         </div>
-        <div className="tagline">Intelligence that closes deals</div>
+        <div className="tagline">{tenant.tagline}</div>
 
         {user && (
           <div className="nav">
