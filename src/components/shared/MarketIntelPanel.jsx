@@ -1,7 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { callAI, serperSearch, extractJSON } from '../../lib/ai'
 import { isDemoUser, delay } from '../../lib/demo'
 import Spinner from '../ui/Spinner'
+
+// ── Cache helpers (24h TTL) ──────────────────────────────────────
+const CACHE_TTL = 24 * 60 * 60 * 1000
+const cacheKey = (ind, reg) => 'te_mkt_' + (ind + '_' + reg).toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+const getCached = (ind, reg) => {
+  try {
+    const raw = localStorage.getItem(cacheKey(ind, reg))
+    if (!raw) return null
+    const { data, ts } = JSON.parse(raw)
+    return Date.now() - ts < CACHE_TTL ? data : null
+  } catch { return null }
+}
+const setCached = (ind, reg, data) => {
+  try { localStorage.setItem(cacheKey(ind, reg), JSON.stringify({ data, ts: Date.now() })) } catch {}
+}
 
 // ── Reusable Market Intel Panel (Stages 1 + 2) ──────────────────
 // Use anywhere: Lead Room tab, Lead view, Deal view, inline after research
@@ -43,20 +58,27 @@ export default function MarketIntelPanel({ initialIndustry = '', initialRegion =
   const [industry, setIndustry] = useState(initialIndustry)
   const [region, setRegion] = useState(initialRegion)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
+  const [result, setResult] = useState(() => initialIndustry ? getCached(initialIndustry, initialRegion) : null)
   const [status, setStatus] = useState('')
 
   const CHIPS = ['food manufacturing', 'cold chain logistics', 'agriculture', 'industrial packaging', 'meat processing']
 
-  const run = async (ind, reg) => {
+  const run = async (ind, reg, forceRefresh = false) => {
     const i = (ind !== undefined ? ind : industry).trim()
     const r = (reg !== undefined ? reg : region).trim() || 'Australia'
     if (!i) return showToast('Enter an industry to analyse', 'error')
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = getCached(i, r)
+      if (cached) { setResult(cached); setStatus(''); return }
+    }
     setLoading(true); setResult(null); setStatus('Searching market data...')
 
     if (isDemoUser(user)) {
       await delay(1800)
-      setResult({ ...DEMO_RESULT, industry: i, region: r })
+      const demoData = { ...DEMO_RESULT, industry: i, region: r }
+      setCached(i, r, demoData)
+      setResult(demoData)
       setStatus('')
       setLoading(false); return
     }
@@ -86,7 +108,9 @@ export default function MarketIntelPanel({ initialIndustry = '', initialRegion =
       const raw = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1200)
       const parsed = extractJSON(raw)
       if (parsed) {
-        setResult({ ...parsed, industry: i, region: r })
+        const data = { ...parsed, industry: i, region: r }
+        setCached(i, r, data) // ← save to cache
+        setResult(data)
         setStatus('')
       } else {
         setStatus('Could not parse — try again')
@@ -95,12 +119,12 @@ export default function MarketIntelPanel({ initialIndustry = '', initialRegion =
     setLoading(false)
   }
 
-  // Auto-run if initialIndustry provided
-  const [autoRan, setAutoRan] = useState(false)
-  if (initialIndustry && !autoRan && !result && !loading) {
-    setAutoRan(true)
-    setTimeout(() => run(initialIndustry, initialRegion), 0)
-  }
+  // Auto-run on mount if industry pre-filled and no cached result
+  useEffect(() => {
+    if (initialIndustry && !getCached(initialIndustry, initialRegion)) {
+      run(initialIndustry, initialRegion)
+    }
+  }, []) // eslint-disable-line
 
   return (
     <div>
@@ -128,7 +152,7 @@ export default function MarketIntelPanel({ initialIndustry = '', initialRegion =
       )}
 
       {compact && result && (
-        <button className="btn btn-secondary btn-sm" style={{ marginBottom: 10, fontSize: 11 }} onClick={() => run()} disabled={loading}>
+        <button className="btn btn-secondary btn-sm" style={{ marginBottom: 10, fontSize: 11 }} onClick={() => run(undefined, undefined, true)} disabled={loading}>
           🔄 Refresh
         </button>
       )}

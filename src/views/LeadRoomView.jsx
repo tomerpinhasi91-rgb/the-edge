@@ -79,8 +79,6 @@ export default function LeadRoomView({ setView, setActiveId }) {
     { key: 'prospect', label: '🎯 Prospects' },
     { key: 'research', label: '🔍 Research' },
     { key: 'email', label: '✉ Emails' },
-    { key: 'market', label: '📊 Market intel' },
-    { key: 'strategy', label: '🗺 Strategy' },
     { key: 'saved', label: 'Saved (' + leads.length + ')' },
   ]
 
@@ -103,8 +101,6 @@ export default function LeadRoomView({ setView, setActiveId }) {
         {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} goToResearch={goToResearch} goToEmail={goToEmail} setView={setView} />}
         {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} goToEmail={goToEmail} initialQuery={researchQuery} />}
         {tab === 'email' && <EmailFinder user={user} saveAccount={saveAccount} showToast={showToast} leads={leads} initialQuery={emailQuery} />}
-        {tab === 'market' && <MarketIntelTab user={user} showToast={showToast} />}
-        {tab === 'strategy' && <StrategyTab user={user} leads={leads} setTab={setTab} setView={setView} setActiveId={setActiveId} />}
         {tab === 'saved' && <SavedLeads leads={leads} deleteAccount={deleteAccount} setActiveId={setActiveId} setView={setView} showToast={showToast} />}
       </div>
     </>
@@ -400,6 +396,19 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
     setLoading(false)
   }
 
+  // Called by StakeholderCard when user clicks "Find email" — persists email back into profile state so saveLead() includes it
+  const updateStakeholderEmail = (index, email, confidence) => {
+    setProfile(prev => {
+      const stakeholders = [...(prev.stakeholders || [])]
+      if (stakeholders[index]) {
+        stakeholders[index] = { ...stakeholders[index], email, emailConfidence: confidence }
+      }
+      const updated = { ...prev, stakeholders }
+      lsSet(LS_RESEARCH, updated) // also persist to local cache
+      return updated
+    })
+  }
+
   const saveLead = async () => {
     if (!profile || !saveAccount) return
     setSaving(true)
@@ -527,7 +536,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
             <div className="card" style={{ marginBottom: 12 }}>
               <div className="card-title">Key stakeholders</div>
               {(profile.stakeholders || []).map((s, i) => (
-                <StakeholderCard key={i} stakeholder={s} profileDomain={profileDomain} profileName={profile.name} user={user} showToast={showToast} />
+                <StakeholderCard key={i} stakeholder={s} profileDomain={profileDomain} profileName={profile.name} user={user} showToast={showToast} onEmailFound={(email, conf) => updateStakeholderEmail(i, email, conf)} />
               ))}
             </div>
           )}
@@ -579,7 +588,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
 const ROLE_COLORS = { Champion: '#0F6E56', 'Economic Buyer': '#185FA5', Influencer: '#BA7517', Blocker: '#A32D2D', User: '#6b7280', 'Technical Buyer': '#533AB7' }
 const ROLE_BG = { Champion: '#e1f5ee', 'Economic Buyer': '#E6F1FB', Influencer: '#FAEEDA', Blocker: '#FCEBEB', User: '#f3f4f6', 'Technical Buyer': '#ede9fe' }
 
-function StakeholderCard({ stakeholder: s, profileDomain, profileName, user, showToast }) {
+function StakeholderCard({ stakeholder: s, profileDomain, profileName, user, showToast, onEmailFound }) {
   const [emailLoading, setEmailLoading] = useState(false)
   const [emailResult, setEmailResult] = useState(s.email ? { email: s.email, score: s.emailConfidence || 0 } : null)
   const roleColor = ROLE_COLORS[s.role_type] || '#6b7280'
@@ -596,7 +605,11 @@ function StakeholderCard({ stakeholder: s, profileDomain, profileName, user, sho
       if (companyKey) {
         const firstName = s.name.trim().split(' ')[0].toLowerCase()
         const match = DEMO_EMAILS[companyKey].emails.find(e => e.first_name.toLowerCase() === firstName)
-        if (match) { setEmailResult({ email: match.value, score: match.confidence }); setEmailLoading(false); return }
+        if (match) {
+          setEmailResult({ email: match.value, score: match.confidence })
+          onEmailFound?.(match.value, match.confidence) // ← persist back to parent
+          setEmailLoading(false); return
+        }
       }
       setEmailResult({ email: null, score: 0 })
       setEmailLoading(false); return
@@ -606,6 +619,7 @@ function StakeholderCard({ stakeholder: s, profileDomain, profileName, user, sho
       const parts = s.name.trim().split(' ')
       const data = await hunterPersonEmail(parts[0], parts.slice(1).join(' ') || parts[0], profileDomain)
       setEmailResult(data)
+      if (data?.email) onEmailFound?.(data.email, data.score || 0) // ← persist back to parent
     } catch (e) { showToast('Email lookup failed', 'error') }
     setEmailLoading(false)
   }

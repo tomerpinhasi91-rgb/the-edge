@@ -6,7 +6,6 @@ import { isDemoUser, getDemoKey, DEMO_SWEEPS, DEMO_COACH, delay } from '../lib/d
 import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext } from '../lib/helpers'
 import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
-import MarketIntelPanel from '../components/shared/MarketIntelPanel'
 
 // ── Score circle helper ──────────────────────────────────────────
 function ScoreCircle({ score }) {
@@ -52,7 +51,6 @@ export default function LeadView({ lead, setView, setActiveId }) {
   const TABS = [
     { key: 'overview', label: 'Overview' },
     { key: 'intelligence', label: 'Intelligence' },
-    { key: 'market', label: '📊 Market' },
     { key: 'contacts', label: 'Contacts' },
     { key: 'notes', label: 'Notes' },
     { key: 'coach', label: 'AI Coach' },
@@ -78,11 +76,6 @@ export default function LeadView({ lead, setView, setActiveId }) {
 
       {tab === 'overview' && <LeadOverview lead={lead} save={save} promote={promote} showToast={showToast} user={user} />}
       {tab === 'intelligence' && <LeadIntelligence lead={lead} save={save} user={user} showToast={showToast} />}
-      {tab === 'market' && (
-        <div className="main-content">
-          <MarketIntelPanel initialIndustry={lead.industry || ''} user={user} showToast={showToast} />
-        </div>
-      )}
       {tab === 'contacts' && <LeadContacts lead={lead} save={save} showToast={showToast} />}
       {tab === 'notes' && <LeadNotes lead={lead} save={save} showToast={showToast} />}
       {tab === 'coach' && <LeadCoach lead={lead} save={save} user={user} showToast={showToast} />}
