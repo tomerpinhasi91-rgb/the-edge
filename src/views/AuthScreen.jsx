@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { sb } from '../lib/supabase'
 import { useApp } from '../lib/context'
 import Spinner from '../components/ui/Spinner'
+import LogoMark from '../components/ui/LogoMark'
 
 export default function AuthScreen() {
   const { showToast } = useApp()
@@ -47,10 +48,10 @@ export default function AuthScreen() {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f3f3f3', padding: 20 }}>
       <div style={{ background: 'white', borderRadius: 16, padding: 40, width: '100%', maxWidth: 400, border: '0.5px solid #e5e5e5' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 48, background: '#0F6E56', borderRadius: 12, marginBottom: 16 }}>
-            <span style={{ color: 'white', fontWeight: 700, fontSize: 16, letterSpacing: -0.5 }}>te</span>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+            <LogoMark size={56} variant="dark" />
           </div>
-          <div style={{ fontSize: 22, fontWeight: 600, color: '#1f2937', marginBottom: 4 }}>the edge</div>
+          <div style={{ fontSize: 22, fontWeight: 600, color: '#1f2937', marginBottom: 4 }}>The Edge</div>
           <div style={{ fontSize: 12, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Intelligence that closes deals</div>
         </div>
 
