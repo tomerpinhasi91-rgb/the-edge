@@ -83,9 +83,12 @@ export function AppProvider({ children }) {
         ev.signIn()
         loadAccounts(u.id)
         checkIsAdmin(u.email).then(setIsAdmin)
-        // Notify admin if this is a brand-new signup (created within last 90s)
+        // Notify admin on new signup — use localStorage flag to fire exactly once per user
+        const notifyKey = 'te_notified_' + u.id
+        const alreadyNotified = localStorage.getItem(notifyKey)
         const ageMs = u.created_at ? Date.now() - new Date(u.created_at).getTime() : Infinity
-        if (ageMs < 90000) {
+        if (!alreadyNotified && ageMs < 600000) { // within 10 minutes of account creation
+          localStorage.setItem(notifyKey, '1')
           fetch('/api/notify-new-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
