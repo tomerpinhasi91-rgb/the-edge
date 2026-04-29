@@ -151,10 +151,10 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
     }
 
     try {
-      // #1 #6 Enhance queries with profile/ICP + year + location
+      // #1 #6 Enhance prospect queries — pass isProspect=true to allow ICP injection
       const profile = loadProfile(user?.id)
-      const q1 = buildSearchQuery(cat + ' companies ' + loc, profile, icp)
-      const q2 = buildSearchQuery(cat + ' manufacturers suppliers ' + loc, profile, icp)
+      const q1 = buildSearchQuery(cat + ' companies ' + loc, profile, icp, true)
+      const q2 = buildSearchQuery(cat + ' manufacturers suppliers ' + loc, profile, icp, true)
       const [r1, r2] = await Promise.allSettled([serperSearch(q1), serperSearch(q2)])
       const organic1 = r1.status === 'fulfilled' ? (r1.value.organic || []) : []
       const organic2 = r2.status === 'fulfilled' ? (r2.value.organic || []) : []
@@ -337,18 +337,18 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       const searchQuery = buildSearchQuery(name + ' ' + place + ' company', userProfile, null)
       const liQuery = '"' + name + '" site:linkedin.com/in'
 
-      // #2 #7 Run searches in parallel
+      // Run searches in parallel — full result counts for quality
       const [serper, tavily, liSerper] = await Promise.allSettled([
         serperSearch(searchQuery),
-        tavilySearch(searchQuery, 4),
+        tavilySearch(searchQuery, 5),
         serperSearch(liQuery, false) // no date restrict for LinkedIn
       ])
 
-      // #2 #7 Build clean deduplicated context
+      // Build rich deduplicated context — generous limits for company research
       const context = buildAIContext(
         serper.status === 'fulfilled' ? serper.value : null,
         tavily.status === 'fulfilled' ? tavily.value : null,
-        { maxSnippet: 200, maxNews: 4, maxOrganic: 4, maxTavily: 3 }
+        { maxSnippet: 300, maxNews: 5, maxOrganic: 5, maxTavily: 4 }
       )
 
       // Parse LinkedIn results independently for stakeholder fallback
@@ -378,7 +378,7 @@ Example signals: [{"priority":"watch","title":"Expanding into QLD market","body"
 
 Rules: 3-5 signals. 3 talking points. Up to 3 stakeholders ONLY if full names appear in search data — otherwise return [].`
 
-      const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1200, false)
+      const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1400, false)
       const parsed = extractJSON(result)
       if (parsed && parsed.name) {
         // Merge: use AI stakeholders if found, otherwise use LinkedIn fallback

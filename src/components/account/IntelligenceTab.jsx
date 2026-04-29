@@ -69,30 +69,30 @@ export default function IntelligenceTab({ account }) {
     try {
       const ctx = `Company: ${account.name} | Industry: ${account.industry || ''} | Location: ${account.location || ''} | Stage: ${account.stage || ''}`
 
-      // #1 #6 Enhance query with profile/ICP context
+      // #1 Enhance query — add year + location, no ICP injection (company-specific search)
       const enhancedQuery = buildSearchQuery(
         rawQuery + ' ' + account.name + ' ' + (account.industry || ''),
         profile,
-        icp
+        null  // don't inject ICP industry — query is already account-specific
       )
 
       // #2 #7 Parallel search + clean deduplicated context
       const [serper, tavily] = await Promise.allSettled([
         serperSearch(enhancedQuery),
-        tavilySearch(enhancedQuery, 4)
+        tavilySearch(enhancedQuery, 5)
       ])
 
       const context = buildAIContext(
         serper.status === 'fulfilled' ? serper.value : null,
         tavily.status === 'fulfilled' ? tavily.value : null,
-        { maxSnippet: 150, maxNews: 4, maxOrganic: 3, maxTavily: 3 }
+        { maxSnippet: 300, maxNews: 5, maxOrganic: 5, maxTavily: 4 }
       )
 
       // #4 Structured prompt
       const prompt = SWEEP_PROMPT(ctx)
       const result = context.length > 80
-        ? await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 700, false)
-        : await callAI(prompt, [{ role: 'user', content: 'Find intelligence signals for: ' + enhancedQuery }], 700, true)
+        ? await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 900, false)
+        : await callAI(prompt, [{ role: 'user', content: 'Find intelligence signals for: ' + enhancedQuery }], 900, true)
 
       const parsed = extractSignals(result)
       if (parsed && parsed.length) {

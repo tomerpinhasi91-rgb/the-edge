@@ -38,33 +38,33 @@ export const setResearchCache = (key, data) => {
 }
 
 // ── #1 #6 Query pre-processor ────────────────────────────────────
-// Enhances a raw query with year, location, and ICP context
-export const buildSearchQuery = (rawQuery, profile = null, icp = null) => {
+// Enhances a raw query with year and location — keeps it focused
+// isProspect=true allows ICP industry injection for broad prospect searches only
+export const buildSearchQuery = (rawQuery, profile = null, icp = null, isProspect = false) => {
   if (!rawQuery) return rawQuery
   let q = rawQuery.trim()
   const year = new Date().getFullYear()
 
-  // Add year if not already present
+  // Add year if not already present (keeps results current)
   if (!q.includes(String(year)) && !q.includes(String(year - 1))) q += ` ${year}`
 
-  // Add "Australia" if not location-specific and profile is AU-based
+  // Add "Australia" if no location already in query
   const hasLocation = /\b(australia|victoria|nsw|queensland|sa|wa|tasmania|nt|act|melbourne|sydney|brisbane|adelaide|perth)\b/i.test(q)
   if (!hasLocation) {
     const territory = profile?.territory || ''
     if (!territory || /australia/i.test(territory)) q += ' Australia'
   }
 
-  // #6 Inject ICP industry hint into prospect searches (not company-specific searches)
-  if (icp?.personas?.length) {
+  // #6 Only inject ICP industry for broad prospect searches (not company-specific lookups)
+  // Company-specific: query already contains a proper name → don't dilute it
+  if (isProspect && icp?.personas?.length) {
     const industries = icp.personas
       .flatMap(p => p.industries || [])
       .filter(Boolean)
-      .slice(0, 2)
+      .slice(0, 1)
       .join(' ')
     if (industries && !q.toLowerCase().includes(industries.toLowerCase())) {
-      // Only add industry if query is generic (not already a company name search)
-      const wordCount = q.split(' ').length
-      if (wordCount < 5) q += ` ${industries}`
+      q += ` ${industries}`
     }
   }
 
@@ -75,20 +75,19 @@ export const buildSearchQuery = (rawQuery, profile = null, icp = null) => {
 // Takes raw Serper + Tavily results → clean, deduplicated, trimmed context string
 export const buildAIContext = (serperResult, tavilyResult, opts = {}) => {
   const {
-    maxSnippet   = 160,  // chars per snippet
-    maxNews      = 4,
-    maxOrganic   = 4,
-    maxTavily    = 3,
+    maxSnippet = 300,  // chars per snippet — long enough to preserve full sentences
+    maxNews    = 5,
+    maxOrganic = 5,
+    maxTavily  = 4,
   } = opts
 
-  const seenUrls    = new Set()
-  const seenDomains = new Set()
+  // URL-only dedup — same domain can have different relevant articles
+  const seenUrls = new Set()
   let context = ''
 
   const cleanSnip = (s) => (s || '').slice(0, maxSnippet).replace(/\s+/g, ' ').trim()
-  const domainOf  = (url) => { try { return new URL(url).hostname.replace('www.', '') } catch (e) { return url } }
 
-  // Knowledge Graph — highest signal
+  // Knowledge Graph — highest signal, always include
   const kg = serperResult?.knowledgeGraph
   if (kg?.title) {
     context += `OVERVIEW: ${kg.title}${kg.type ? ` (${kg.type})` : ''} — ${cleanSnip(kg.description)}\n\n`
@@ -99,9 +98,8 @@ export const buildAIContext = (serperResult, tavilyResult, opts = {}) => {
   const newsAdded = []
   for (const n of news) {
     if (newsAdded.length >= maxNews) break
-    const domain = domainOf(n.link || '')
-    if (seenUrls.has(n.link) || seenDomains.has(domain)) continue
-    seenUrls.add(n.link); seenDomains.add(domain)
+    if (seenUrls.has(n.link)) continue
+    seenUrls.add(n.link)
     newsAdded.push(`[${n.date || 'recent'}] ${n.title}: ${cleanSnip(n.snippet)}`)
   }
   if (newsAdded.length) context += `NEWS:\n${newsAdded.join('\n')}\n\n`
@@ -111,21 +109,19 @@ export const buildAIContext = (serperResult, tavilyResult, opts = {}) => {
   const webAdded = []
   for (const r of organic) {
     if (webAdded.length >= maxOrganic) break
-    const domain = domainOf(r.link || '')
-    if (seenUrls.has(r.link) || seenDomains.has(domain)) continue
-    seenUrls.add(r.link); seenDomains.add(domain)
+    if (seenUrls.has(r.link)) continue
+    seenUrls.add(r.link)
     webAdded.push(`${r.title}: ${cleanSnip(r.snippet)}`)
   }
   if (webAdded.length) context += `WEB:\n${webAdded.join('\n')}\n\n`
 
-  // Tavily — deduplicate against what Serper already returned
+  // Tavily — URL-dedup against Serper only
   const tavilyResults = (tavilyResult?.results || []).filter(r => r.title && r.content)
   const tavAdded = []
   for (const r of tavilyResults) {
     if (tavAdded.length >= maxTavily) break
-    const domain = domainOf(r.url || '')
-    if (seenUrls.has(r.url) || seenDomains.has(domain)) continue
-    seenUrls.add(r.url); seenDomains.add(domain)
+    if (seenUrls.has(r.url)) continue
+    seenUrls.add(r.url)
     tavAdded.push(`${r.title}: ${cleanSnip(r.content)}`)
   }
   if (tavAdded.length) context += `ADDITIONAL:\n${tavAdded.join('\n')}`

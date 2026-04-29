@@ -42,10 +42,10 @@ module.exports = async function handler(req, res) {
 
   const headers = { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY };
 
-  // #3: date-restrict web search to past year for relevance; news to past 3 months
-  const searchBody = { q: query, gl: gl || 'au', hl: hl || 'en', num: num || 6 };
-  if (dateRestrict !== false) searchBody.tbs = 'qdr:y';  // past 12 months
-  const newsBody   = { q: query, gl: 'au', hl: 'en', num: 4, tbs: 'qdr:m3' }; // past 3 months
+  // Web search: no date restriction — company profiles, products, history are all relevant
+  // News only: restrict to past 6 months so signals stay fresh
+  const searchBody = { q: query, gl: gl || 'au', hl: hl || 'en', num: num || 8 };
+  const newsBody   = { q: query, gl: 'au', hl: 'en', num: 5, tbs: 'qdr:m6' };
 
   try {
     const [searchRes, newsRes] = await Promise.all([
