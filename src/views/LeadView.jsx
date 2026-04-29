@@ -5,6 +5,8 @@ import { callAI, serperSearch, tavilySearch, extractSignals, scoreLead, hunterPe
 import { isDemoUser, getDemoKey, DEMO_SWEEPS, DEMO_COACH, delay } from '../lib/demo'
 import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext } from '../lib/helpers'
 import { loadICP, buildICPContext } from '../lib/icp'
+import ActivitiesTab from '../components/account/ActivitiesTab'
+import MarketIntelPanel from '../components/shared/MarketIntelPanel'
 import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
 
@@ -33,8 +35,29 @@ function ScoreCircle({ score }) {
 export default function LeadView({ lead, setView, setActiveId }) {
   const { saveAccount, deleteAccount, showToast, user } = useApp()
   const [tab, setTab] = useState('overview')
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState(null)
 
   const save = (updates) => saveAccount({ ...lead, ...updates })
+
+  const openEdit = () => {
+    setEditForm({
+      name: lead.name || '', industry: lead.industry || '', location: lead.location || '',
+      size: lead.size || '', revenue: lead.revenue || '', website: lead.website || '',
+      contact: lead.contact || '', opportunity: lead.opportunity || '',
+      timeline: lead.timeline || '', nextMeeting: lead.nextMeeting || '',
+      why: lead.why || '', description: lead.description || '',
+    })
+    setEditOpen(true)
+  }
+
+  const saveEdit = async () => {
+    await saveAccount({ ...lead, ...editForm })
+    setEditOpen(false)
+    showToast('Lead updated', 'success')
+  }
+
+  const setF = (k, v) => setEditForm(prev => ({ ...prev, [k]: v }))
 
   const promote = async () => {
     if (!window.confirm('Move ' + lead.name + ' to Deal Accounts?')) return
@@ -55,6 +78,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
   const TABS = [
     { key: 'overview', label: 'Overview' },
     { key: 'intelligence', label: 'Intelligence' },
+    { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
     { key: 'notes', label: 'Notes' },
     { key: 'coach', label: 'AI Coach' },
@@ -69,6 +93,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#FAEEDA', color: '#BA7517', fontWeight: 500 }}>Lead</span>
+          <button className="btn btn-secondary btn-sm" onClick={openEdit}>Edit</button>
           <button className="btn btn-secondary btn-sm" onClick={removeLead}>Remove</button>
           <button className="btn btn-primary btn-sm" onClick={promote}>Convert to deal →</button>
         </div>
@@ -78,17 +103,38 @@ export default function LeadView({ lead, setView, setActiveId }) {
         {TABS.map(t => <button key={t.key} className={'tab-btn' + (tab === t.key ? ' active' : '')} onClick={() => setTab(t.key)}>{t.label}</button>)}
       </div>
 
-      {tab === 'overview' && <LeadOverview lead={lead} save={save} promote={promote} showToast={showToast} user={user} />}
+      {tab === 'overview' && <LeadOverview lead={lead} save={save} promote={promote} showToast={showToast} user={user} onEdit={openEdit} />}
       {tab === 'intelligence' && <LeadIntelligence lead={lead} save={save} user={user} showToast={showToast} />}
+      {tab === 'activities' && <ActivitiesTab account={lead} />}
       {tab === 'contacts' && <LeadContacts lead={lead} save={save} showToast={showToast} />}
       {tab === 'notes' && <LeadNotes lead={lead} save={save} showToast={showToast} />}
       {tab === 'coach' && <LeadCoach lead={lead} save={save} user={user} showToast={showToast} />}
+
+      {editOpen && editForm && (
+        <Modal title={`Edit — ${lead.name}`} onClose={() => setEditOpen(false)}
+          footer={<><button className="btn btn-secondary" onClick={() => setEditOpen(false)}>Cancel</button><button className="btn btn-primary" onClick={saveEdit}>Save changes</button></>}>
+          <div className="form-grid">
+            <div className="form-group"><label className="form-label">Company name</label><input className="form-input" value={editForm.name} onChange={e => setF('name', e.target.value)} /></div>
+            <div className="form-group"><label className="form-label">Industry</label><input className="form-input" value={editForm.industry} onChange={e => setF('industry', e.target.value)} /></div>
+            <div className="form-group"><label className="form-label">Location</label><input className="form-input" value={editForm.location} onChange={e => setF('location', e.target.value)} /></div>
+            <div className="form-group"><label className="form-label">Size</label><input className="form-input" value={editForm.size} onChange={e => setF('size', e.target.value)} placeholder="e.g. 50–200 employees" /></div>
+            <div className="form-group"><label className="form-label">Revenue</label><input className="form-input" value={editForm.revenue} onChange={e => setF('revenue', e.target.value)} placeholder="e.g. $10M–$50M" /></div>
+            <div className="form-group"><label className="form-label">Website</label><input className="form-input" value={editForm.website} onChange={e => setF('website', e.target.value)} placeholder="https://..." /></div>
+            <div className="form-group"><label className="form-label">Primary contact</label><input className="form-input" value={editForm.contact} onChange={e => setF('contact', e.target.value)} /></div>
+            <div className="form-group"><label className="form-label">Timeline</label><input className="form-input" value={editForm.timeline} onChange={e => setF('timeline', e.target.value)} /></div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Opportunity</label><input className="form-input" value={editForm.opportunity} onChange={e => setF('opportunity', e.target.value)} /></div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Next meeting</label><input className="form-input" value={editForm.nextMeeting} onChange={e => setF('nextMeeting', e.target.value)} /></div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Why this lead</label><textarea className="form-input" value={editForm.why} onChange={e => setF('why', e.target.value)} rows={2} /></div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Description</label><textarea className="form-input" value={editForm.description} onChange={e => setF('description', e.target.value)} rows={3} /></div>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
 
 // ── Overview tab ─────────────────────────────────────────────────
-function LeadOverview({ lead, save, promote, showToast, user }) {
+function LeadOverview({ lead, save, promote, showToast, user, onEdit }) {
   const signals = lead.signals || []
   const urgentCount = signals.filter(s => s.priority === 'urgent').length
   const [rescoring, setRescoring] = useState(false)
@@ -124,7 +170,10 @@ function LeadOverview({ lead, save, promote, showToast, user }) {
         <div className="card" style={{ flex: 1, marginBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2937', marginBottom: 10 }}>{lead.name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2937' }}>{lead.name}</div>
+                <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={onEdit}>Edit</button>
+              </div>
               {infoRows.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '5px 16px', fontSize: 13 }}>
                   {infoRows.map(([label, value]) => (
@@ -350,6 +399,20 @@ function LeadIntelligence({ lead, save, user, showToast }) {
               {s.source && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>via {s.source_url ? <a href={s.source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#9ca3af' }}>{s.source}</a> : s.source}{s.date ? ' · ' + s.date : ''}</div>}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Market Intel for this lead's industry */}
+      {lead.industry && (
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 12 }}>📊 Market intel — {lead.industry}</div>
+          <MarketIntelPanel
+            initialIndustry={lead.industry}
+            initialRegion={lead.location ? lead.location.split(',').pop().trim() : 'Australia'}
+            user={user}
+            showToast={showToast}
+            compact={true}
+          />
         </div>
       )}
     </div>

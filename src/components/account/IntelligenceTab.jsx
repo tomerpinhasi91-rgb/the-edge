@@ -4,6 +4,7 @@ import { uid } from '../../lib/supabase'
 import { callAI, serperSearch, tavilySearch, extractSignals } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_SWEEPS, delay } from '../../lib/demo'
 import { PRIORITY_COLORS, PRIORITY_BG } from '../../lib/helpers'
+import MarketIntelPanel from '../shared/MarketIntelPanel'
 import Spinner from '../ui/Spinner'
 
 export default function IntelligenceTab({ account }) {
@@ -149,6 +150,20 @@ export default function IntelligenceTab({ account }) {
               {s.source_url && <a href={s.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#9ca3af' }}>{s.source || s.source_url}</a>}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Market Intel for this account's industry */}
+      {account.industry && (
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 12 }}>📊 Market intel — {account.industry}</div>
+          <MarketIntelPanel
+            initialIndustry={account.industry}
+            initialRegion={account.location ? account.location.split(',').pop().trim() : 'Australia'}
+            user={user}
+            showToast={showToast}
+            compact={true}
+          />
         </div>
       )}
     </div>
