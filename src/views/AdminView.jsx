@@ -417,7 +417,7 @@ export default function AdminView() {
                           </span>
                         </td>
                         <td style={{ padding: '10px 8px' }}>
-                          <a href={`https://us.posthog.com/project/~/person/${u.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>Events ↗</a>
+                          <a href={`https://us.posthog.com/persons?search=${encodeURIComponent(u.email)}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>PostHog ↗</a>
                         </td>
                         <td style={{ padding: '10px 8px' }}>
                           <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(u.id)}>View →</button>
@@ -433,15 +433,42 @@ export default function AdminView() {
             )}
           </div>
           {/* Export buttons */}
-          {!loading && allRows.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          {!loading && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}
-                onClick={() => exportAccountsCSV(allRows.filter(r => r.data?._type === 'lead').map(r => r.data), 'all-leads-' + new Date().toISOString().split('T')[0] + '.csv')}>
-                ↓ Export all leads CSV
+                onClick={() => {
+                  const leads = allRows.map(r => r.data).filter(d => d && d._type === 'lead')
+                  exportAccountsCSV(leads, 'all-leads-' + new Date().toISOString().split('T')[0] + '.csv')
+                }}>
+                ↓ Export all leads CSV ({allRows.filter(r => r.data?._type === 'lead').length})
               </button>
               <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}
-                onClick={() => exportAccountsCSV(allRows.filter(r => r.data?._type === 'account').map(r => r.data), 'all-deals-' + new Date().toISOString().split('T')[0] + '.csv')}>
-                ↓ Export all deals CSV
+                onClick={() => {
+                  const deals = allRows.map(r => r.data).filter(d => d && d._type === 'account')
+                  exportAccountsCSV(deals, 'all-deals-' + new Date().toISOString().split('T')[0] + '.csv')
+                }}>
+                ↓ Export all deals CSV ({allRows.filter(r => r.data?._type === 'account').length})
+              </button>
+              <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}
+                onClick={() => {
+                  const headers = 'Email,Joined,Last Sign-in,Leads,Deals,Signals,Activities,Coach Sessions,Status'
+                  const rows = allUsers.map(u => {
+                    const sigCount = u.accounts.reduce((s, a) => s + (a.signals || []).length, 0)
+                    const actCount = u.accounts.reduce((s, a) => s + (a.activities || []).length, 0)
+                    const coachCount = u.accounts.reduce((s, a) => s + (a.coach_sessions || []).length, 0)
+                    const leadsCount = u.accounts.filter(a => a._type === 'lead').length
+                    const dealsCount = u.accounts.filter(a => a._type === 'account').length
+                    const cells = [u.email, u.created_at ? new Date(u.created_at).toLocaleDateString('en-AU') : '', u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('en-AU') : '', leadsCount, dealsCount, sigCount, actCount, coachCount, u.confirmed_at ? 'Confirmed' : 'Unconfirmed']
+                    return cells.map(c => String(c).includes(',') ? '"' + c + '"' : c).join(',')
+                  })
+                  const csv = [headers, ...rows].join('\r\n')
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+                  const url = URL.createObjectURL(blob)
+                  const link = document.createElement('a')
+                  link.href = url; link.download = 'users-' + new Date().toISOString().split('T')[0] + '.csv'
+                  document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url)
+                }}>
+                ↓ Export users CSV ({allUsers.length})
               </button>
             </div>
           )}

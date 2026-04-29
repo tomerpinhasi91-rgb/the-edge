@@ -3,7 +3,7 @@ import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
 import { callAI, serperSearch, tavilySearch, extractSignals, scoreLead, hunterPersonEmail } from '../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_SWEEPS, DEMO_COACH, delay } from '../lib/demo'
-import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext } from '../lib/helpers'
+import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext, exportAccountsCSV } from '../lib/helpers'
 import { loadICP, buildICPContext } from '../lib/icp'
 import ActivitiesTab from '../components/account/ActivitiesTab'
 import MarketIntelPanel from '../components/shared/MarketIntelPanel'
@@ -93,6 +93,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#FAEEDA', color: '#BA7517', fontWeight: 500 }}>Lead</span>
+          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => exportAccountsCSV([lead], lead.name.replace(/\s+/g, '-').toLowerCase() + '-lead.csv')}>↓ CSV</button>
           <button className="btn btn-secondary btn-sm" onClick={openEdit}>Edit</button>
           <button className="btn btn-secondary btn-sm" onClick={removeLead}>Remove</button>
           <button className="btn btn-primary btn-sm" onClick={promote}>Convert to deal →</button>

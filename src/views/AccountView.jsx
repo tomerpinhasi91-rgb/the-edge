@@ -6,7 +6,7 @@ import ActivitiesTab from '../components/account/ActivitiesTab'
 import IntelligenceTab from '../components/account/IntelligenceTab'
 import CoachTab from '../components/account/CoachTab'
 import Modal from '../components/ui/Modal'
-import { STAGE_LABELS } from '../lib/helpers'
+import { STAGE_LABELS, exportAccountsCSV } from '../lib/helpers'
 
 const STAGES = ['qualify', 'proposal', 'negotiate', 'closing', 'won', 'lost']
 
@@ -83,6 +83,7 @@ export default function AccountView({ account, setView }) {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#e1f5ee', color: '#0F6E56', fontWeight: 500 }}>{STAGE_LABELS[account.stage] || account.stage || 'Qualify'}</span>
+          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => exportAccountsCSV([account], account.name.replace(/\s+/g, '-').toLowerCase() + '-deal.csv')}>↓ CSV</button>
           <button className="btn btn-secondary btn-sm" onClick={openEdit}>Edit</button>
           <button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
         </div>

@@ -5,6 +5,7 @@ import { initials, loadProfile } from '../lib/helpers'
 import { loadICP, saveICP, EMPTY_ICP, EMPTY_PERSONA, ICP_SIZES } from '../lib/icp'
 import { callAI, extractJSON } from '../lib/ai'
 import { ev } from '../lib/analytics'
+import { exportAccountsCSV } from '../lib/helpers'
 
 const DEAL_SIZES = ['Under $10K', '$10K–$50K', '$50K–$150K', '$150K–$500K', '$500K+']
 const SALES_CYCLES = ['Under 1 month', '1–3 months', '3–6 months', '6–12 months', '12+ months']
@@ -97,7 +98,7 @@ function PersonaCard({ persona, index, onChange, onRemove }) {
 }
 
 export default function ProfileView() {
-  const { user, showToast } = useApp()
+  const { user, showToast, leads, dealAccounts } = useApp()
   const [profile, setProfile] = useState(EMPTY_PROFILE)
   const [icp, setICP] = useState(EMPTY_ICP())
   const [activeTab, setActiveTab] = useState('profile')
@@ -214,6 +215,7 @@ export default function ProfileView() {
   const PROFILE_TABS = [
     { key: 'profile', label: 'Profile' },
     { key: 'icp', label: '🎯 ICP' },
+    { key: 'export', label: '↓ Export' },
     { key: 'security', label: 'Security' },
     { key: 'diagnostics', label: 'Diagnostics' },
   ]
@@ -407,6 +409,50 @@ export default function ProfileView() {
               {saving ? 'Saving...' : '💾 Save ICP'}
             </button>
           </>
+        )}
+
+        {/* ── EXPORT TAB ── */}
+        {activeTab === 'export' && (
+          <div>
+            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 20, lineHeight: 1.6 }}>
+              Download all your leads or deals as a spreadsheet. Includes company info, contacts, notes, signals and activities. Compatible with Excel, Google Sheets and any CRM import tool.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>📋 Leads</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>{leads.length} lead{leads.length !== 1 ? 's' : ''} · company info, contacts, signals, notes</div>
+                </div>
+                <button className="btn btn-primary btn-sm" disabled={leads.length === 0}
+                  onClick={() => exportAccountsCSV(leads, 'my-leads-' + new Date().toISOString().split('T')[0] + '.csv')}>
+                  ↓ Export leads CSV
+                </button>
+              </div>
+              <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>💼 Deal accounts</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>{dealAccounts.length} deal{dealAccounts.length !== 1 ? 's' : ''} · stage, value, contacts, activities, notes</div>
+                </div>
+                <button className="btn btn-primary btn-sm" disabled={dealAccounts.length === 0}
+                  onClick={() => exportAccountsCSV(dealAccounts, 'my-deals-' + new Date().toISOString().split('T')[0] + '.csv')}>
+                  ↓ Export deals CSV
+                </button>
+              </div>
+              <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>📦 Everything</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>{leads.length + dealAccounts.length} total accounts · leads + deals combined</div>
+                </div>
+                <button className="btn btn-secondary btn-sm" disabled={leads.length + dealAccounts.length === 0}
+                  onClick={() => exportAccountsCSV([...leads, ...dealAccounts], 'all-accounts-' + new Date().toISOString().split('T')[0] + '.csv')}>
+                  ↓ Export all CSV
+                </button>
+              </div>
+            </div>
+            <div style={{ marginTop: 20, padding: '12px 14px', background: '#f0fdf8', borderRadius: 10, fontSize: 12, color: '#0F6E56', lineHeight: 1.6 }}>
+              💡 <strong>CRM import:</strong> This CSV format is designed to map directly into HubSpot, Salesforce and most other CRMs. Company name, industry, contacts and deal value are in standard columns.
+            </div>
+          </div>
         )}
 
         {/* ── SECURITY TAB ── */}
