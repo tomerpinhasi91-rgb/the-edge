@@ -14,6 +14,27 @@ const STARTERS = [
   'How do I set up my ICP?',
 ]
 
+// Pre-written answers for starter chips — no API call needed
+const STARTER_ANSWERS = {
+  'How do I find new prospects?':
+    `Go to Lead Room (🎯 in the sidebar) → Prospect Finder tab.\n\nType an industry, location or keyword (e.g. "food manufacturing Victoria") and hit Search. You'll get up to 12 matching companies.\n\nFrom there:\n• Click 🔍 Research to get signals + talking points on any company\n• Click ✉ Emails to find contact emails via Hunter\n• Click Save lead to add them to your pipeline`,
+
+  "What's the difference between a lead and a deal?":
+    `Leads are prospects you're still researching or nurturing — companies you haven't formally engaged yet.\n\nDeals are active pipeline opportunities — you're in conversation, there's a real chance of winning, and you want to track stages, value, and risk.\n\nWhen a lead is ready, open it → Activities tab → tap "Convert to deal →" at the bottom. All their data, signals and activities carry over automatically.`,
+
+  'How does the AI coach work?':
+    `Open any lead or deal → AI Coach tab.\n\nChoose a preset:\n• 📋 Full brief — complete account summary\n• 🎯 Deal score — win probability + reasoning\n• 📞 Pre-call prep — what to say before a call\n• ⚠️ Risk analysis — what could kill this deal\n• ✉️ Outreach email — ready-to-send draft\n• 📅 Meeting agenda — structured 45-min plan\n• 🏆 Win strategy — how to close\n\nThe coach uses your rep profile, ICP, deal data and last 5 activities — so the more you fill in, the sharper the output.`,
+
+  'How do I log a sales activity?':
+    `Open any lead or deal → Activities tab → tap "+ Log activity".\n\nChoose a type: call, meeting, email, note, demo, or proposal.\n\nFill in:\n• Title (required) — e.g. "Discovery call with Jane Smith"\n• Date\n• Notes — key takeaways or decisions\n• Next action — e.g. "Send proposal by Friday"\n\nThe AI coach reads your last 5 activities to generate context-aware coaching and follow-up content.`,
+
+  'What are intelligence signals?':
+    `Signals are AI-researched insights about a company — things that tell you the right time and angle to reach out.\n\n4 types:\n🔴 Urgent — act now (e.g. new funding round, leadership change)\n🟡 Watch — keep an eye on (e.g. expansion plans)\n🔵 Intel — useful context (e.g. market position, recent news)\n🟢 Grant — funding opportunity relevant to them\n\nTo get signals: open any lead or deal → Intel tab → hit ⚡ Sweep or tap one of the quick buttons. Signals are saved to the account for future reference.`,
+
+  'How do I set up my ICP?':
+    `Go to Profile (👤 sidebar) → ICP tab.\n\nFill in your Ideal Customer Profile:\n• Target industries (e.g. Food & Beverage, Logistics)\n• Company size range\n• Decision-maker personas (e.g. Procurement Manager, CFO)\n• Key pain points your product solves\n• Your value proposition\n• Messaging framework — how you open, what you say\n\nThis gets injected into every AI feature across the app — research, coaching, outreach emails, call scripts — making every output sharper and more relevant to your market.`,
+}
+
 const APP_GUIDE = `You are the Edge Assistant — a helpful, friendly guide for The Edge, a B2B sales intelligence platform for field sales reps.
 
 THE EDGE — FEATURE OVERVIEW:
@@ -150,8 +171,15 @@ export default function ChatBot() {
 
     const nextMessages = [...messages, userMessage]
     setMessages(nextMessages)
-    setLoading(true)
 
+    // Use pre-written answer for starter chips — no API call needed
+    const staticAnswer = !pendingImage && STARTER_ANSWERS[text]
+    if (staticAnswer) {
+      setMessages(prev => [...prev, { role: 'assistant', content: staticAnswer }])
+      return
+    }
+
+    setLoading(true)
     try {
       const system = buildSystemPrompt()
       const result = await callAI(system, toApiMessages(nextMessages), 700)
