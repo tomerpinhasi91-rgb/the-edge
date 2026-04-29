@@ -7,7 +7,7 @@ import Spinner from './Spinner'
 
 const STARTERS = [
   'How do I find new prospects?',
-  'What's the difference between a lead and a deal?',
+  "What's the difference between a lead and a deal?",
   'How does the AI coach work?',
   'How do I log a sales activity?',
   'What are intelligence signals?',
