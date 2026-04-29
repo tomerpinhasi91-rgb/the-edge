@@ -103,19 +103,67 @@ function getDisplayParts(m) {
   return { text, imageUrl }
 }
 
+// ── Proactive nudge helpers ──────────────────────────────────────
+function isProfileEmpty(profile) {
+  return !profile || (!profile.firstName && !profile.whatYouSell && !profile.company)
+}
+function isICPEmpty(icp) {
+  return !icp || !icp.personas || icp.personas.length === 0
+}
+function buildNudgeMessage(profile, icp, user, accounts) {
+  const profileEmpty = isProfileEmpty(profile)
+  const icpEmpty = isICPEmpty(icp)
+  if (!profileEmpty && !icpEmpty) return null // all good
+
+  const name = profile?.firstName || user?.email?.split('@')[0] || null
+  const hi = name ? `Hey ${name}! 👋` : 'Hey there! 👋'
+  const hasActivity = accounts && accounts.length > 0
+
+  if (profileEmpty && icpEmpty) {
+    return hasActivity
+      ? `${hi} I can see you've been exploring — great start!\n\nOne thing that'll make a big difference: your Profile and ICP aren't set up yet. Every AI feature in The Edge — coaching, outreach emails, call scripts, intel sweeps — uses these to personalise every output to your market.\n\nTakes about 2 minutes. Go to Profile (👤 sidebar) → Sales Context tab, then fill in the ICP tab.\n\nWant me to walk you through what to put in each field?`
+      : `${hi} Welcome to The Edge!\n\nBefore you dive in, the best thing you can do is set up your Profile and ICP. Every AI feature — research, coaching, outreach emails, call scripts — uses these to personalise outputs to your specific market and product.\n\nHead to Profile (👤 in the sidebar) → Sales Context to start, then the ICP tab.\n\nWant me to walk you through it?`
+  }
+  if (profileEmpty) {
+    return `${hi} Quick tip — your Profile isn't filled in yet.\n\nThe AI coach, outreach emails, and call scripts all use your name, company, and what you sell to personalise every output. Without it, everything stays generic.\n\nHead to Profile → Sales Context — takes about 60 seconds.\n\nWant me to tell you what each field is for?`
+  }
+  // ICP only
+  return `${hi} Your profile looks great — one more thing.\n\nYour ICP (Ideal Customer Profile) isn't set up yet. This tells the AI which industries to prioritise, what company sizes to target, which decision-makers matter, and how to position your product.\n\nGo to Profile → ICP tab to set it up. Every research result and AI output immediately gets more targeted.\n\nWant a quick walkthrough?`
+}
+
 export default function ChatBot() {
-  const { user } = useApp()
+  const { user, accounts } = useApp()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [pendingImage, setPendingImage] = useState(null) // { base64, dataUrl, mediaType }
+  const [pendingImage, setPendingImage] = useState(null)
+  const [unread, setUnread] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
 
+  // ── Proactive nudge — fires once per session after 4s ────────────
+  useEffect(() => {
+    if (!user) return
+    const nudgeKey = `te_nudge_${user.id}`
+    if (sessionStorage.getItem(nudgeKey)) return // already shown this session
+    const timer = setTimeout(() => {
+      const profile = loadProfile(user.id)
+      const icp = loadICP(user.id)
+      const msg = buildNudgeMessage(profile, icp, user, accounts)
+      if (msg) {
+        sessionStorage.setItem(nudgeKey, '1')
+        setMessages([{ role: 'assistant', content: msg, _nudge: true }])
+        setUnread(true)
+      }
+    }, 4000)
+    return () => clearTimeout(timer)
+  }, [user]) // run once on mount/login
+
   useEffect(() => {
     if (open && messages.length === 0) setTimeout(() => inputRef.current?.focus(), 150)
+    if (open) setUnread(false) // mark read when opened
   }, [open])
 
   useEffect(() => {
@@ -202,21 +250,33 @@ export default function ChatBot() {
   return (
     <>
       {/* ── Floating bubble ── */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
-          width: 52, height: 52, borderRadius: '50%',
-          background: open ? '#0a5a44' : '#0F6E56',
-          border: 'none', cursor: 'pointer',
-          boxShadow: '0 4px 20px rgba(15,110,86,0.35)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, transition: 'all 0.2s', color: 'white',
-        }}
-        title="Edge Assistant"
-      >
-        {open ? '✕' : '💬'}
-      </button>
+      <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1000 }}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{
+            width: 52, height: 52, borderRadius: '50%',
+            background: open ? '#0a5a44' : '#0F6E56',
+            border: 'none', cursor: 'pointer',
+            boxShadow: '0 4px 20px rgba(15,110,86,0.35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22, transition: 'all 0.2s', color: 'white',
+            animation: unread && !open ? 'chatPulse 2s ease-in-out infinite' : 'none',
+          }}
+          title="Edge Assistant"
+        >
+          {open ? '✕' : '💬'}
+        </button>
+        {/* Unread badge */}
+        {unread && !open && (
+          <div style={{
+            position: 'absolute', top: 0, right: 0,
+            width: 16, height: 16, borderRadius: '50%',
+            background: '#ef4444', border: '2px solid white',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 9, color: 'white', fontWeight: 700,
+          }}>1</div>
+        )}
+      </div>
 
       {/* ── Chat panel ── */}
       {open && (
@@ -257,7 +317,7 @@ export default function ChatBot() {
           {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-            {/* Empty state — starters */}
+            {/* Empty state — starters (only when no nudge message loaded) */}
             {messages.length === 0 && (
               <div>
                 <div style={{ fontSize: 13, color: '#6b7280', textAlign: 'center', marginBottom: 14, marginTop: 4 }}>
@@ -275,6 +335,13 @@ export default function ChatBot() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Nudge message highlight — subtle banner above first assistant message */}
+            {messages.length > 0 && messages[0]?._nudge && (
+              <div style={{ fontSize: 11, color: '#0F6E56', fontWeight: 600, textAlign: 'center', padding: '4px 8px', background: '#f3faf7', borderRadius: 6, marginBottom: 2 }}>
+                💡 Personalised tip for you
               </div>
             )}
 
@@ -422,6 +489,10 @@ export default function ChatBot() {
         @keyframes chatSlideUp {
           from { opacity: 0; transform: translateY(12px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes chatPulse {
+          0%, 100% { box-shadow: 0 4px 20px rgba(15,110,86,0.35); }
+          50%       { box-shadow: 0 4px 28px rgba(15,110,86,0.65), 0 0 0 6px rgba(15,110,86,0.15); }
         }
       `}</style>
     </>
