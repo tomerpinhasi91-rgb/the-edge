@@ -4,299 +4,370 @@ export const getDemoKey = (name) => (name || '').toLowerCase().trim()
 export const delay = (ms) => new Promise(r => setTimeout(r, ms))
 
 export const DEMO_RESEARCH = {
-  'apex protein co': {
-    score: 87,
-    name: 'Apex Protein Co',
-    industry: 'Food Manufacturing – Protein & Sports Nutrition',
-    location: 'Norwood, Adelaide SA',
-    size: '45–80 employees',
-    website: 'https://apexprotein.com.au',
-    description: 'One of South Australia fastest growing sports nutrition manufacturers, producing protein bars, powders and RTD products for Chemist Warehouse and Coles nationally. Founded 2016 by former Olympic swimmer Dean Hartley.',
+  'rivalea foods': {
+    score: 89,
+    name: 'Rivalea Foods',
+    industry: 'Meat Processing – Pork & Value-Added Proteins',
+    location: 'Corowa, NSW',
+    size: '1,800+ employees',
+    website: 'https://rivalea.com.au',
+    description: 'Australia\'s largest integrated pork producer and processor, acquired by JBS Australia in 2022. Produces fresh pork, smallgoods and value-added products for Woolworths, Coles and ALDI nationally. Annual revenue ~$680M. JBS investment cycle is driving automation upgrades across all facilities.',
     signals: [
-      { priority: 'urgent', title: 'New $4.2M facility opening March 2026', body: 'Apex confirmed a $4.2M production expansion in Norwood creating 22 jobs. New facility triples cold storage and adds a dedicated RTD line.', action: 'Call Dean Hartley this week — new facility means new supplier contracts opening now.', source_url: '' },
-      { priority: 'watch', title: 'Chemist Warehouse national listing confirmed — 520 stores', body: 'Apex Protein confirmed for national Chemist Warehouse rollout April 2026. Significant volume increase means new logistics requirements.', action: 'Position solution around scaling to meet national retail volumes.', source_url: '' },
-      { priority: 'intel', title: 'CEO Dean Hartley — EY Entrepreneur of the Year 2025 SA Finalist', body: 'Dean Hartley recognised as SA finalist for EY Entrepreneur of the Year 2025.', action: 'Reference the award in outreach — shows you follow their progress.', source_url: '' }
+      { priority: 'urgent', title: 'JBS capital program — $12M automation budget approved for Corowa FY26', body: 'JBS Australia approved a $12M capital investment program for Rivalea\'s Corowa facility focused on reducing manual handling and increasing throughput on fresh pork tray-sealing lines. Engineering team has been tasked with RFQ preparation beginning Q2 2026.', action: 'Contact Peter Nguyen (Engineering Manager) this week — the RFQ shortlist is being built now, before it closes to new vendors.', source_url: '' },
+      { priority: 'watch', title: 'ALDI private label contract — tray-packed pork volume increasing 35% from July', body: 'Rivalea confirmed a new ALDI private label fresh pork contract adding approximately 35% volume to their retail tray lines from July 2026. Current tray seal throughput will not support the uplift without additional capacity.', action: 'Lead with throughput per hour — they need more lines, not just faster lines. Quantify the gap before the call.', source_url: '' },
+      { priority: 'intel', title: 'SQF audit flagged manual seal integrity as Category 2 finding', body: 'Rivalea\'s most recent SQF food safety audit flagged manual tray seal integrity variation as a Category 2 finding. A follow-up third-party audit is scheduled for Q3 2026.', action: 'Position automated tray sealing as food safety risk mitigation, not just efficiency — the audit finding gives your business case an urgency and compliance angle that resonates with the board.', source_url: '' }
     ],
     contacts: [
-      { name: 'Dean Hartley', title: 'CEO & Founder', linkedin: 'https://linkedin.com/in/dean-hartley-apex', why_relevant: 'Economic buyer and founder. Responds to precision and performance narratives.' },
-      { name: 'Michelle Okafor', title: 'Head of Operations', linkedin: '', why_relevant: 'Key decision maker on production equipment and logistics.' },
-      { name: 'James Tran', title: 'Procurement Manager', linkedin: '', why_relevant: 'Manages all supplier contracts. Direct contact for commercial discussions.' }
+      { name: 'Peter Nguyen', title: 'Engineering & Projects Manager', linkedin: 'https://linkedin.com/in/peter-nguyen-rivalea', why_relevant: 'Technical champion and project sponsor for the JBS automation investment. Controls the vendor shortlist and RFQ process.' },
+      { name: 'Diane Kowalski', title: 'Operations Director', linkedin: '', why_relevant: 'Economic buyer. Signs all capex above $200K. Responds to throughput data and labour cost reduction arguments.' },
+      { name: 'Craig Mallory', title: 'Procurement Manager', linkedin: '', why_relevant: 'Manages vendor evaluation and commercial terms. Requires minimum 3 vendors in RFQ — confirm your inclusion.' }
     ],
     talking_points: [
-      'Your $4.2M Norwood expansion and the Chemist Warehouse national rollout happening simultaneously is a rare inflection point — how are you thinking about scaling supplier relationships to match the new volumes?',
-      'Dean, your background as an Olympic athlete must inform how you think about operational precision — are there areas in your supply chain where the standards still feel like they are catching up to your product quality?',
-      'With 22 new roles coming online in March and a national retail rollout in April, what does your current operational readiness look like for the RTD line specifically?'
+      'Peter, with the JBS capex approved and the ALDI volume starting in July, you\'re running two clocks at once — what\'s the commissioning timeline pressure on getting new tray seal capacity online before the volume hits?',
+      'The SQF seal integrity finding is exactly the problem automated tray sealing eliminates — every seal verified, every cycle logged, zero variation. How is that audit finding shaping the internal business case for the capex?',
+      'We\'ve commissioned tray seal lines for Baiada and Hilton Food at similar throughput requirements — happy to arrange a reference call with their engineering managers if that would help your evaluation.'
     ]
   },
-  'bluecrest logistics': {
-    score: 82,
-    name: 'BlueCrest Logistics',
-    industry: 'Cold Chain Logistics & Warehousing',
-    location: 'Bibra Lake, Perth WA',
-    size: '85 employees',
-    website: 'https://bluecrestlogistics.com.au',
-    description: 'BlueCrest operates 3 temperature-controlled warehouses across Perth servicing seafood, dairy and pharmaceutical sectors. $28M revenue, growing 18% YoY.',
+  'beak & johnston': {
+    score: 93,
+    name: 'Beak & Johnston',
+    industry: 'Ready Meals & Value-Added Proteins',
+    location: 'Emu Plains, NSW',
+    size: '320 employees',
+    website: 'https://beakandjohnston.com.au',
+    description: 'Leading Australian manufacturer of fresh ready meals, marinated proteins and sous vide products. Supplies Woolworths, Coles, Costco and major food service operators. PE-backed, growing 28% YoY. Their product profile and customer base closely mirrors Select Equip\'s existing customers — My Muscle Chef, LiteNEasy and YouFoodz.',
     signals: [
-      { priority: 'urgent', title: 'CFO meeting Thursday — ROI case needed', body: 'CFO Marcus Webb confirmed for Thursday proposal review. Known to be sceptical of tech spend without hard payback data.', action: 'Send ROI calculator to Ryan TODAY for preview before Thursday.', source_url: '' },
-      { priority: 'grant', title: 'WA Digital Adaptation grant Round 3 open — up to $15K', body: 'WA government Round 3 open for Small Business Digital Adaptation grant covering up to $15,000 for eligible implementations.', action: 'Include grant info in proposal — reduces net investment by $15K.', source_url: 'https://smallbusiness.wa.gov.au' }
+      { priority: 'urgent', title: 'Woolworths Macro organic range — MAP tray seal line required by October 2026', body: 'B&J confirmed as preferred supplier for the Woolworths Macro organic ready meal range launching October 2026. New SKUs require modified atmosphere packaging (MAP) tray sealing. Current equipment cannot run modified atmosphere — a new line must be commissioned within 5 months.', action: 'Live requirement, hard deadline. Call Shane Donoghue (Head of Operations) this week — this is exactly what we installed for My Muscle Chef.', source_url: '' },
+      { priority: 'watch', title: 'PE investor EBITDA target — $1.2M improvement program, labour cost in focus', body: 'Private equity backer set a $1.2M EBITDA improvement target for FY27. Operations is evaluating automation across all packing lines. Labour on tray sealing and portioning is the largest variable cost opportunity.', action: 'Build the ROI case around FTE reduction — they need hard numbers to take to the PE board. A fully automated line at 3 shifts saves 4-6 FTEs.', source_url: '' },
+      { priority: 'grant', title: 'NSW Food & Agribusiness Automation Grant — up to $500K, closes September 2026', body: 'NSW Food and Agribusiness Network automation grant Round 2 is open. Up to $500K for eligible manufacturers investing in processing automation. B&J would qualify based on revenue and product category.', action: 'Include the grant in the proposal — $500K offset dramatically improves the business case and can accelerate their internal approval timeline.', source_url: 'https://foodagribusiness.org.au' }
     ],
     contacts: [
-      { name: 'Ryan Callister', title: 'Operations Manager', linkedin: 'https://linkedin.com/in/ryan-callister-perth', why_relevant: 'Champion. Frustrated with manual processes. Needs help selling to CFO.' },
-      { name: 'Marcus Webb', title: 'CFO', linkedin: '', why_relevant: 'Economic buyer. Requires ROI under 18 months. Thursday is first meeting.' }
+      { name: 'Shane Donoghue', title: 'Head of Operations', linkedin: 'https://linkedin.com/in/shane-donoghue-bj', why_relevant: 'Champion and technical decision maker. Driving the Woolworths Macro project. The October deadline is real and he knows it.' },
+      { name: 'Rachel Beak', title: 'CEO', linkedin: '', why_relevant: 'Economic buyer. Third-generation family owner operating under PE pressure. Relationship-driven but needs hard ROI data for the board.' },
+      { name: 'Tim Garlick', title: 'CFO', linkedin: '', why_relevant: 'Controls capex sign-off. Needs the ROI model to satisfy PE board reporting requirements. Focus on payback period, not total cost.' }
     ],
     talking_points: [
-      'Marcus, Ryan quantified your team spends roughly 16 hours per week on manual temperature logging — at current labour rates that is roughly $47,000 per year just in admin cost. Our system automates 90% of that.',
-      'With the WA Digital Adaptation grant Round 3 open, BlueCrest could offset up to $15,000 — bringing your net investment to roughly $170K with ROI under 14 months.',
-      'Toll Group announced a competing WA cold chain product targeting mid-market operators — the window to move first may be shorter than expected.'
+      'Shane, a MAP tray seal line commissioned in 5 months for a Woolworths launch — that\'s a tight window. We did exactly this for My Muscle Chef and LiteNEasy at comparable scale. Who else on your shortlist has that reference?',
+      'The PE board EBITDA target is actually a tailwind for this conversation — a fully automated MAP line running 3 shifts eliminates 4-6 FTEs. At current labour rates in Emu Plains, that\'s $380-520K annually. Payback under 3 years without the grant, under 2 with it.',
+      'With the NSW automation grant closing September and the October launch date, the decision timeline lines up perfectly — you apply now, equipment order August, commissioned before launch.'
     ]
   },
-  'summit packaging solutions': {
-    score: 91,
-    name: 'Summit Packaging Solutions',
-    industry: 'Sustainable Packaging Manufacturing',
-    location: 'Murarrie, Brisbane QLD',
-    size: '210 employees',
-    website: 'https://summitpackaging.com.au',
-    description: 'Summit Packaging manufactures compostable food service packaging for major QSR and FMCG brands. $67M revenue. AIPIA Sustainable Innovation of the Year 2025 winner.',
+  'patties foods group': {
+    score: 81,
+    name: 'Patties Foods Group',
+    industry: 'Frozen & Chilled Food Manufacturing',
+    location: 'Bairnsdale, VIC',
+    size: '450 employees',
+    website: 'https://pattiesfoods.com.au',
+    description: 'Iconic Australian food manufacturer producing Four\'N Twenty pies, Nanna\'s pastries and Farmers Union products. Supplies supermarkets, convenience and food service nationally. Turnover ~$250M. Primary HFFS line approaching end of OEM support — board has approved $3.5M capex for replacement.',
     signals: [
-      { priority: 'intel', title: 'AIPIA Sustainable Innovation Award 2025 winner', body: 'Summit won AIPIA Sustainable Innovation of the Year 2025 for compostable cold cup liner technology, boosting brand profile and inbound enquiries significantly.', action: 'Reference at signing — they are growing fast and need systems that scale.', source_url: '' },
-      { priority: 'watch', title: 'WA and VIC expansion confirmed H2 2026', body: 'CEO Paul Drummond confirmed WA and VIC distribution centres opening H2 2026, adding 60+ employees nationally.', action: 'Plant Phase 2 upsell seed at Monday contract signing.', source_url: '' }
+      { priority: 'urgent', title: 'Primary HFFS line — OEM parts support ends December 2026', body: 'Patties\' main HFFS production line (2011 vintage) reaches end of OEM parts and service support in December 2026. The production manager has formally flagged the replacement risk to the board. A failure on this line during peak season (Easter, football finals) would be catastrophic.', action: 'This is a compliance-driven hard deadline with board-level visibility. They are already evaluating options — get in front of the Engineering Manager now before the shortlist closes.', source_url: '' },
+      { priority: 'watch', title: 'New premium pie range — individual flow wrap required for Coles pilot April 2026', body: 'Patties confirmed a premium Four\'N Twenty range pilot with Coles from April 2026, requiring individual flow wrap packaging. Current equipment runs bulk trays only — the pilot is running on manual packaging, which is not scalable.', action: 'Lead with flow wrap capability alongside HFFS replacement — this is a new capability requirement, not just replacement budget, which broadens the commercial conversation.', source_url: '' },
+      { priority: 'intel', title: 'Board approved $3.5M capex for production line upgrade FY26', body: 'Board approved $3.5M capital allocation for production line upgrades in FY26. Engineering team is currently scoping requirements and evaluating vendors.', action: 'Budget is confirmed and allocated — this is a live buying cycle with a real deadline. Prioritise getting on the vendor shortlist immediately.', source_url: '' }
     ],
     contacts: [
-      { name: 'Alicia Drummond', title: 'COO', linkedin: 'https://linkedin.com/in/alicia-drummond-summit', why_relevant: 'Champion and economic buyer. Daughter of CEO. Drives all decisions.' },
-      { name: 'Paul Drummond', title: 'CEO & Founder', linkedin: '', why_relevant: 'Signed off verbally. Needs to countersign Monday.' },
-      { name: 'Brett Finucane', title: 'General Counsel', linkedin: '', why_relevant: 'Blocker — legal review is the last gate. Known to be slow on IP clauses.' }
+      { name: 'Mark Saliba', title: 'Production Manager', linkedin: '', why_relevant: 'Technical champion. Flagged the OEM support risk to the board. Wants a solution he can trust to run 3 shifts at peak season.' },
+      { name: 'Julie Anstee', title: 'General Manager Operations', linkedin: 'https://linkedin.com/in/julie-anstee-patties', why_relevant: 'Economic buyer. Controls the $3.5M capex. Practical, experienced, expects suppliers to demonstrate deep food manufacturing knowledge.' },
+      { name: 'Scott Morant', title: 'Engineering Manager', linkedin: '', why_relevant: 'Technical evaluator. Will assess machine specs, FAT process, integration with existing lines and spare parts availability.' }
     ],
     talking_points: [
-      'Alicia, given WA and VIC expansion confirmed for H2, it is worth discussing at Monday signing how we extend the platform to those facilities at marginal cost — a Phase 2 conversation worth having now.',
-      'The AIPIA award is driving strong inbound — does your current inventory system have visibility to handle a major volume spike if a new QSR chain comes on board this quarter?',
-      'For Brett — our standard enterprise IP clause has been accepted by 40+ ASX-listed companies. Happy to send him the legal summary directly to speed his review.'
+      'Mark, an HFFS line with no OEM support and no replacement plan is a production continuity risk sitting right in front of peak season — if it goes down at Easter with no parts available, what\'s the plan? That question tends to sharpen the internal timeline significantly.',
+      'The Coles premium flow wrap pilot and the HFFS replacement are actually the same conversation — the right new line handles both requirements within the $3.5M capex. What\'s the risk if the Coles pilot succeeds but you\'re not able to scale it?',
+      'Scott, for the FAT process — we have a test facility in Melbourne where you can run your own products on the line before commissioning. That\'s how we reduce your risk on the integration. Would a site visit be useful this month?'
     ]
   },
-  'harvest ridge foods': {
-    score: 78,
-    name: 'Harvest Ridge Foods',
-    industry: 'Food Processing & Distribution – Fresh Produce',
-    location: 'Dandenong South, Melbourne VIC',
-    size: '120–180 employees',
-    website: 'https://harvestridge.com.au',
-    description: 'Harvest Ridge processes and distributes fresh-cut vegetables and ready-meal components to QSR chains, airlines and supermarket private label brands. Key customers include Qantas Catering and Woolworths.',
+  'hazeldenes chicken farm': {
+    score: 77,
+    name: 'Hazeldene\'s Chicken Farm',
+    industry: 'Poultry Processing & Distribution',
+    location: 'Bendigo, VIC',
+    size: '600 employees',
+    website: 'https://hazeldenes.com.au',
+    description: 'Family-owned Victorian poultry processor supplying fresh chicken to Woolworths, IGA and food service. Third-generation business. Vertically integrated from farm to retail. Strong Victorian provenance story and animal welfare focus. New CEO took over in 2025 — first major capital review underway.',
     signals: [
-      { priority: 'urgent', title: 'Qantas Catering contract renewal Q2 2026 — competitor pitching', body: 'The $3.8M annual Qantas Catering supply contract comes up for renewal in Q2 2026. Pacific Fresh reportedly pitching aggressively.', action: 'Position your solution around contract renewal differentiation.', source_url: '' },
-      { priority: 'watch', title: 'FSANZ digital temperature logging required by July 2026', body: 'FSANZ updated cold chain compliance requirements effective July 2026, requiring digital temperature logging across all fresh produce supply chains.', action: 'Lead with compliance angle — July deadline creates immediate urgency.', source_url: 'https://foodstandards.gov.au' }
+      { priority: 'watch', title: 'Export licence approved — Singapore and Hong Kong entry Q3 2026 requires MAP capability', body: 'Hazeldene\'s received DAFF export licence approval for chilled poultry to Singapore and Hong Kong from Q3 2026. Export packaging requires MAP tray sealing for 21-day shelf life — significantly longer than their current domestic fresh-pack specification.', action: 'This is new budget, not replacement budget. Export MAP requirements are a separate project from their domestic lines — frame it that way.', source_url: '' },
+      { priority: 'watch', title: 'Woolworths private label uplift 20% from June — current throughput under pressure', body: 'Hazeldene\'s Woolworths private label fresh chicken volume increased 20% from June 2026 following a competitor supply disruption. Existing tray seal lines are running at capacity and throughput is being managed by adding weekend shifts.', action: 'Weekend shift overtime is expensive and unsustainable — quantify the labour cost of the current workaround before the first call. That\'s the business case.', source_url: '' },
+      { priority: 'intel', title: 'New CEO David Hazeldene — first capital review underway, fresh supplier relationships open', body: 'David Hazeldene took over as CEO in late 2025. New leadership typically reviews key supplier relationships and capital investment priorities in the first year — this is the ideal window to establish a relationship before the next budget cycle locks in.', action: 'Request a meeting framed around the export opportunity — it\'s growth-focused and gives you a reason to be there that isn\'t just "selling equipment."', source_url: '' }
     ],
     contacts: [
-      { name: 'Sandra Voronova', title: 'Managing Director', linkedin: 'https://linkedin.com/in/sandra-voronova', why_relevant: 'Economic buyer. Incredibly direct, responds to hard ROI numbers only.' },
-      { name: 'Patrick Nguyen', title: 'Supply Chain Director', linkedin: '', why_relevant: 'Driving the FSANZ compliance project. Keen to find a solution fast.' }
+      { name: 'David Hazeldene', title: 'CEO', linkedin: 'https://linkedin.com/in/david-hazeldene', why_relevant: 'Economic buyer and new CEO in first year. Open to evaluating new suppliers and investment priorities, especially export growth opportunities.' },
+      { name: 'Karen Stretch', title: 'Operations Manager', linkedin: '', why_relevant: 'Technical decision maker. Has managed the Woolworths relationship for 8 years. Highly commercially aware — responds to data, not features.' },
+      { name: 'Brett Cummins', title: 'Export & Sales Manager', linkedin: '', why_relevant: 'Driving the Singapore/HK export project. Needs MAP capability confirmed before he can commit the export timeline to buyers.' }
     ],
     talking_points: [
-      'Sandra, with the Qantas contract renewal coming in Q2 and Pacific Fresh pitching, what is your strategy to differentiate on service reliability beyond just price?',
-      'The new FSANZ digital temperature logging requirement by July 2026 is catching a lot of processors off-guard — where are you currently at with your compliance roadmap?',
-      'Your spread across QSR, airline catering and supermarket private label is unusual — how do you manage the operational complexity of three very different service level requirements simultaneously?'
+      'Brett, the Singapore and Hong Kong export approval is a real milestone — what\'s the current plan for the MAP packaging requirement? The 21-day shelf life threshold is the difference between a viable export program and one that doesn\'t stack up commercially.',
+      'Karen, a 20% Woolworths volume uplift running on weekend overtime is expensive and fragile — if they come back with another uplift request next quarter, what does that look like? We should be talking about a permanent throughput solution, not managing it shift by shift.',
+      'David, we supply tray sealing equipment to Baiada and Hilton Food — companies at a similar scale to where Hazeldene\'s is heading. Happy to set up a conversation with their operations teams if that would help you understand how others have approached this investment.'
     ]
   }
 }
 
 export const DEMO_SWEEPS = {
-  'apex protein co': [
-    { priority: 'urgent', title: 'RTD production line equipment RFQ opening April 2026', body: 'Apex Protein is issuing an RFQ for RTD production line equipment as part of the $4.2M Norwood facility expansion. Multiple vendors being evaluated.', action: 'Get on the RFQ list — call James Tran in Procurement this week before shortlist closes.', source: 'Industry Intel', source_url: '' },
-    { priority: 'watch', title: 'Chemist Warehouse demanding sustainability reporting from suppliers', body: 'Chemist Warehouse issued new supplier sustainability requirements for all food and nutrition brands from July 2026.', action: 'Position your sustainability reporting tools as part of the Chemist Warehouse compliance solution.', source: 'Retail World AU', source_url: '' },
-    { priority: 'grant', title: 'SA Food Innovation grants — Round 4 opens May 2026', body: 'SA Government Food Innovation grants Round 4 opens May 2026 with up to $250,000 available for food manufacturers investing in technology.', action: 'Share grant information with Dean Hartley — positions you as a strategic partner.', source: 'SA Government', source_url: 'https://sa.gov.au' }
+  'rivalea foods': [
+    { priority: 'urgent', title: 'RFQ shortlist closes — JBS requiring 3 vendors confirmed by end of April', body: 'JBS procurement process requires a minimum of 3 qualified vendors confirmed before the formal RFQ is issued. Engineering Manager Peter Nguyen has indicated the confirmation deadline is end of April 2026.', action: 'Call Peter Nguyen today — confirm Select Equip\'s inclusion on the shortlist before the window closes.', source: 'Industry Intel', source_url: '' },
+    { priority: 'watch', title: 'JBS global automation standard — preferred equipment list may apply', body: 'JBS globally is standardising on specific equipment brands across their facilities. Australian operations may be required to align with the global preferred vendor list, which could affect the open RFQ.', action: 'Confirm with Peter Nguyen whether the JBS global preferred list applies to Corowa — if it does, understanding that list is critical.', source: 'Food Processing Technology', source_url: '' },
+    { priority: 'grant', title: 'NSW Agribusiness Automation Fund — Rivalea may qualify for up to $750K', body: 'NSW Government Agribusiness Automation Fund is open to processors with over 100 employees investing in labour-reduction technology. Rivalea\'s Corowa facility would likely qualify based on headcount and investment scale.', action: 'Include grant information in the proposal — a $750K offset on a $12M program is meaningful and shows you understand their financial environment.', source: 'NSW Government', source_url: '' }
   ],
-  'bluecrest logistics': [
-    { priority: 'urgent', title: 'Toll Group WA cold chain product launching Q3 2026', body: 'Toll Group confirmed their competing WA cold chain management product will launch Q3 2026, targeting mid-market operators in the $20-50M revenue range.', action: 'Accelerate BlueCrest close before Toll launches — create urgency around being first mover.', source: 'Logistics & Materials Handling', source_url: '' },
-    { priority: 'grant', title: 'WA Digital Adaptation grant closes 30 May 2026', body: 'Round 3 of the WA Small Business Digital Adaptation grant closes 30 May 2026. Applications take 6-8 weeks to process.', action: 'Help Ryan submit the grant application this week — deadline creates urgency for Thursday.', source: 'WA Small Business', source_url: 'https://smallbusiness.wa.gov.au' }
+  'beak & johnston': [
+    { priority: 'urgent', title: 'Woolworths launch date confirmed — MAP line must be running by 1 October 2026', body: 'Woolworths has confirmed the Macro organic range launch date as 1 October 2026. B&J have contractual obligations to supply from day one. The MAP tray seal line must be fully commissioned and running production by that date.', action: 'The 1 October date is fixed. Work back: commissioning by mid-September, FAT completed August, equipment order no later than May. The clock is running.', source: 'Retail World Australia', source_url: '' },
+    { priority: 'watch', title: 'PE investor board review — capex approvals require 36-month payback or better', body: 'B&J\'s PE backer requires all capital investments above $300K to demonstrate a maximum 36-month payback in board submissions. Proposals not structured around this threshold are typically deferred.', action: 'Structure the ROI model to show 36 months or better — with the NSW grant, most tray seal configurations hit this threshold comfortably.', source: 'Market Intel', source_url: '' }
   ],
-  'summit packaging solutions': [
-    { priority: 'intel', title: 'Restaurant chain in active vendor evaluation for packaging partner', body: 'A major QSR confirmed they are in vendor evaluation for a new sustainable packaging partner from Q3 2026, looking for compostable solutions.', action: 'Alert Alicia — this is a high-value prospect the AIPIA award positions them to win.', source: 'QSR Media AU', source_url: '' },
-    { priority: 'watch', title: 'WA site confirmed — Fremantle industrial estate, 3,200sqm', body: 'Summit Packaging confirmed their WA expansion site in Fremantle, targeting operational by October 2026. Procurement for fit-out beginning now.', action: 'Use WA site confirmation to progress Phase 2 upsell at Monday signing.', source: 'PKN Packaging News', source_url: '' }
+  'patties foods group': [
+    { priority: 'urgent', title: 'OEM confirmed — no parts or service after 31 December 2026', body: 'The HFFS equipment OEM issued formal written notice that parts supply and service contracts for 2011-vintage lines will not be renewed after 31 December 2026. Patties have the letter — it\'s now a board-level issue.', action: 'Ask Mark Saliba for a copy of the OEM notice — understanding the exact scope of what\'s losing support helps you size the replacement specification correctly.', source: 'Industry Intel', source_url: '' },
+    { priority: 'watch', title: 'Coles premium range — pilot results positive, scale decision expected May 2026', body: 'The Four\'N Twenty premium individual flow wrap pilot at Coles has received strong early sell-through data. A scale decision is expected in May 2026, which would require full line capability — not manual packaging.', action: 'The May scale decision creates a second urgency point alongside the December OEM deadline. Both point to the same conversation.', source: 'PKN Packaging News', source_url: '' },
+    { priority: 'grant', title: 'VIC Food Manufacturing Modernisation Fund — Round 2 opening June 2026', body: 'Victorian Government Food Manufacturing Modernisation Fund Round 2 opens June 2026. Up to $400K for eligible manufacturers. Patties\' Bairnsdale facility is in an eligible regional zone attracting the maximum grant tier.', action: 'Flag the VIC grant to Julie Anstee — regional location gives them the highest grant tier. Include in the proposal.', source: 'Invest Victoria', source_url: 'https://invest.vic.gov.au' }
   ],
-  'harvest ridge foods': [
-    { priority: 'urgent', title: 'FSANZ compliance audit notices issued to VIC processors', body: 'FSANZ issued compliance audit notices to 23 Victorian food processors failing to meet updated temperature logging requirements, with penalties up to $50,000 per incident.', action: 'Send Sandra the FSANZ audit notice summary — creates immediate urgency.', source: 'FSANZ', source_url: 'https://foodstandards.gov.au' },
-    { priority: 'watch', title: 'Qantas Catering RFP for fresh produce suppliers closing June 2026', body: 'Qantas Catering issued a fresh produce supplier RFP closing June 2026, requiring digital traceability, temperature logging compliance and ESG reporting.', action: 'Help Harvest Ridge build their RFP response — position your platform as the technology differentiator.', source: 'Industry Intel', source_url: '' }
+  'hazeldenes chicken farm': [
+    { priority: 'watch', title: 'Singapore buyer confirmed — chilled chicken purchase order contingent on MAP shelf life', body: 'Hazeldene\'s Singapore distribution partner has issued a purchase order conditional on MAP-verified 21-day shelf life. Brett Cummins is under pressure to confirm packaging capability before the buyer deadline in June 2026.', action: 'The Singapore PO creates a hard deadline for Brett — help him understand the MAP commissioning timeline so he can give his buyer a confirmed date.', source: 'Export Intel', source_url: '' },
+    { priority: 'intel', title: 'Woolworths category review — fresh chicken preferred supplier status under annual review', body: 'Woolworths conducts annual preferred supplier reviews in the fresh chicken category. Throughput reliability and packaging consistency are key evaluation criteria alongside price.', action: 'Karen Stretch will know this review is coming. Automated tray sealing directly improves the consistency metrics Woolworths scores on.', source: 'Market Intel', source_url: '' }
   ]
 }
 
 export const DEMO_EMAILS = {
-  'apex protein co': {
+  'rivalea foods': {
     emails: [
-      { first_name: 'Dean', last_name: 'Hartley', value: 'dean@apexprotein.com.au', position: 'CEO & Founder', confidence: 94, linkedin_url: 'https://linkedin.com/in/dean-hartley-apex' },
-      { first_name: 'Michelle', last_name: 'Okafor', value: 'michelle.o@apexprotein.com.au', position: 'Head of Operations', confidence: 88, linkedin_url: '' },
-      { first_name: 'James', last_name: 'Tran', value: 'j.tran@apexprotein.com.au', position: 'Procurement Manager', confidence: 82, linkedin_url: '' }
+      { first_name: 'Peter', last_name: 'Nguyen', value: 'peter.nguyen@rivalea.com.au', position: 'Engineering & Projects Manager', confidence: 91, linkedin_url: 'https://linkedin.com/in/peter-nguyen-rivalea' },
+      { first_name: 'Diane', last_name: 'Kowalski', value: 'd.kowalski@rivalea.com.au', position: 'Operations Director', confidence: 85, linkedin_url: '' },
+      { first_name: 'Craig', last_name: 'Mallory', value: 'c.mallory@rivalea.com.au', position: 'Procurement Manager', confidence: 79, linkedin_url: '' }
     ],
-    pattern: '{first}.{last}', org: 'Apex Protein Co'
+    pattern: '{first}.{last}', org: 'Rivalea Foods'
   },
-  'bluecrest logistics': {
+  'beak & johnston': {
     emails: [
-      { first_name: 'Ryan', last_name: 'Callister', value: 'ryan.c@bluecrestlogistics.com.au', position: 'Operations Manager', confidence: 95, linkedin_url: 'https://linkedin.com/in/ryan-callister-perth' },
-      { first_name: 'Marcus', last_name: 'Webb', value: 'marcus.webb@bluecrestlogistics.com.au', position: 'CFO', confidence: 88, linkedin_url: '' },
-      { first_name: 'Theresa', last_name: 'Poletti', value: 't.poletti@bluecrestlogistics.com.au', position: 'Warehouse Manager', confidence: 79, linkedin_url: '' }
+      { first_name: 'Shane', last_name: 'Donoghue', value: 'shane.d@beakandjohnston.com.au', position: 'Head of Operations', confidence: 94, linkedin_url: 'https://linkedin.com/in/shane-donoghue-bj' },
+      { first_name: 'Rachel', last_name: 'Beak', value: 'rachel@beakandjohnston.com.au', position: 'CEO', confidence: 89, linkedin_url: '' },
+      { first_name: 'Tim', last_name: 'Garlick', value: 't.garlick@beakandjohnston.com.au', position: 'CFO', confidence: 82, linkedin_url: '' }
     ],
-    pattern: '{first}.{last}', org: 'BlueCrest Logistics'
+    pattern: '{first}.{last}', org: 'Beak & Johnston'
   },
-  'summit packaging solutions': {
+  'patties foods group': {
     emails: [
-      { first_name: 'Alicia', last_name: 'Drummond', value: 'a.drummond@summitpackaging.com.au', position: 'COO', confidence: 99, linkedin_url: 'https://linkedin.com/in/alicia-drummond-summit' },
-      { first_name: 'Paul', last_name: 'Drummond', value: 'paul@summitpackaging.com.au', position: 'CEO & Founder', confidence: 92, linkedin_url: '' },
-      { first_name: 'Brett', last_name: 'Finucane', value: 'b.finucane@summitpackaging.com.au', position: 'General Counsel', confidence: 78, linkedin_url: '' }
+      { first_name: 'Julie', last_name: 'Anstee', value: 'j.anstee@pattiesfoods.com.au', position: 'GM Operations', confidence: 93, linkedin_url: 'https://linkedin.com/in/julie-anstee-patties' },
+      { first_name: 'Mark', last_name: 'Saliba', value: 'm.saliba@pattiesfoods.com.au', position: 'Production Manager', confidence: 86, linkedin_url: '' },
+      { first_name: 'Scott', last_name: 'Morant', value: 's.morant@pattiesfoods.com.au', position: 'Engineering Manager', confidence: 78, linkedin_url: '' }
     ],
-    pattern: '{first}', org: 'Summit Packaging Solutions'
+    pattern: '{first_initial}.{last}', org: 'Patties Foods Group'
   },
-  'harvest ridge foods': {
+  'hazeldenes chicken farm': {
     emails: [
-      { first_name: 'Sandra', last_name: 'Voronova', value: 'svoronova@harvestridge.com.au', position: 'Managing Director', confidence: 91, linkedin_url: 'https://linkedin.com/in/sandra-voronova' },
-      { first_name: 'Patrick', last_name: 'Nguyen', value: 'p.nguyen@harvestridge.com.au', position: 'Supply Chain Director', confidence: 85, linkedin_url: '' }
+      { first_name: 'David', last_name: 'Hazeldene', value: 'david@hazeldenes.com.au', position: 'CEO', confidence: 97, linkedin_url: 'https://linkedin.com/in/david-hazeldene' },
+      { first_name: 'Karen', last_name: 'Stretch', value: 'k.stretch@hazeldenes.com.au', position: 'Operations Manager', confidence: 88, linkedin_url: '' },
+      { first_name: 'Brett', last_name: 'Cummins', value: 'b.cummins@hazeldenes.com.au', position: 'Export & Sales Manager', confidence: 81, linkedin_url: '' }
     ],
-    pattern: '{first_initial}{last}', org: 'Harvest Ridge Foods'
+    pattern: '{first_initial}.{last}', org: 'Hazeldene\'s Chicken Farm'
   }
 }
 
 export const DEMO_PROSPECTS = [
-  { name: 'Mitolo Family Farms', description: 'Australia largest potato wholesaler and producer. 26 farms across NSW and SA. Majority stake acquired by Ontario Teachers Pension Plan 2023.', website: 'https://mitolofamilyfarms.com.au', type: 'Agriculture – Potato Production' },
-  { name: 'Talia Farms', description: 'One of Australia largest table grape enterprises. 961 hectares across Riverland SA. Award-winning sustainable growing practices.', website: 'https://taliafarms.com.au', type: 'Agriculture – Table Grape Production' },
-  { name: 'Perfection Fresh', description: 'Leading fresh produce company supplying premium varieties to major Australian retailers. Strong innovation pipeline.', website: 'https://perfectionfresh.com.au', type: 'Fresh Produce – Innovation & Retail' },
-  { name: 'Thomas Foods International', description: 'Australia largest family-owned red meat processor. Established 1988, processing facilities in SA and VIC.', website: 'https://thomasfoods.com', type: 'Food Processing – Red Meat' },
-  { name: 'Rewards Group', description: 'South Australian food manufacturer producing premium smallgoods, dips and chilled foods for major supermarket retailers nationally.', website: 'https://rewardsgroup.com.au', type: 'Food Manufacturing – Smallgoods' },
-  { name: 'Maggie Beer Holdings', description: 'Iconic SA food brand producing premium products across farm shop, retail and export channels. Recent profit turnaround after 2023 restructure.', website: 'https://maggiebeer.com.au', type: 'Food Manufacturing – Premium Specialty' }
+  { name: 'Ingham\'s Enterprises', description: 'Australia and New Zealand\'s largest integrated poultry producer. ASX-listed, $2.8B revenue. Major tray-packed fresh chicken and value-added protein lines for Woolworths and Coles nationally.', website: 'https://inghams.com.au', type: 'Poultry Processing – Integrated Producer' },
+  { name: 'Thomas Foods International', description: 'Australia\'s largest family-owned red meat processor. Facilities in SA and VIC processing beef, lamb and pork for domestic retail and export. $2B+ revenue, active capital investment program.', website: 'https://thomasfoods.com', type: 'Red Meat Processing – Export & Domestic' },
+  { name: 'Don KRC (George Weston Foods)', description: 'Leading Australian smallgoods manufacturer producing Don and KRC brands. Major tray-packed and flow-wrapped smallgoods operations in VIC and NSW. Part of GWF national manufacturing network.', website: 'https://gwf.com.au', type: 'Smallgoods Manufacturing – FMCG' },
+  { name: 'Simplot Australia', description: 'Major frozen food manufacturer (Birds Eye, Leggo\'s). Large-scale VFFS and HFFS operations across multiple categories. Multiple manufacturing sites nationally undergoing equipment refresh cycles.', website: 'https://simplot.com.au', type: 'Frozen Food Manufacturing – Multi-Category' },
+  { name: 'Luv-a-Duck', description: 'Australia\'s leading duck producer and processor. Premium retail and food service products. Growing export market to Asia requiring MAP packaging capability. Family-owned, Nhill VIC.', website: 'https://luvaduck.com.au', type: 'Poultry Processing – Premium Duck' },
+  { name: 'Bertocchi Smallgoods', description: 'Leading Italian-style smallgoods manufacturer in VIC. Supplying major supermarkets with flow-wrapped and tray-packed salami, prosciutto and deli meats. Family-owned, Thomastown VIC. Active equipment upgrade cycle.', website: 'https://bertocchi.com.au', type: 'Smallgoods Manufacturing – Italian Style' }
 ]
 
 export const DEMO_COACH = {
   approach: {
-    'apex protein co': `## APPROACH STRATEGY — APEX PROTEIN CO
+    'rivalea foods': `## APPROACH STRATEGY — RIVALEA FOODS
 
-**PRIMARY CONTACT: Dean Hartley (CEO & Founder)**
+**PRIMARY CONTACT: Peter Nguyen (Engineering & Projects Manager)**
 
-As founder and economic buyer, Dean controls all strategic supplier decisions. The $4.2M facility expansion is his project.
+Peter is your technical champion and the person building the vendor shortlist for the JBS capex program. He has the authority to include or exclude Select Equip before the formal RFQ is issued. Getting confirmed on that shortlist is the first objective.
 
-**OPENING MESSAGE**
+**OPENING MESSAGE TO PETER**
 
-Lead with the facility expansion:
-"Dean, I saw the Norwood facility expansion and the Chemist Warehouse national listing coming in the same quarter. That is a significant operational challenge to execute simultaneously. I work with food manufacturers at exactly this inflection point."
+"Peter, I understand Rivalea is scoping tray seal line automation as part of the JBS FY26 capex program. Select Equip has commissioned lines for Baiada and Hilton Food at similar throughput requirements — wanted to connect before the RFQ is finalised to understand your specification."
 
-**KEY POSITIONING**
-- Connect your solution to the RTD line specifically — that is where the new capacity risk sits
-- Reference the EY Entrepreneur award to show you have done your homework
-- Position as helping him WIN, not just solve a problem
+**WHY THIS WORKS**
+- References JBS capex specifically — shows you've done your homework
+- Name-drops Baiada and Hilton Food immediately — direct competitors/peers that Rivalea knows
+- Asks to understand the spec, not to pitch — reduces defensiveness
+- Creates urgency around the RFQ timeline
 
-**NEXT STEP:** Call James Tran (Procurement) first to map the supplier evaluation process, then get an intro to Dean through Michelle Okafor (Operations).`,
+**PATH TO DIANE KOWALSKI (Operations Director)**
+Once Peter is engaged, ask him directly: "Is Diane Kowalski involved in the vendor evaluation at this stage, or does that come later in the process?" — this gives you permission to reach out to the economic buyer.
 
-    'bluecrest logistics': `## CFO MEETING PREP — MARCUS WEBB (THURSDAY)
+**THE SQF ANGLE**
+The food safety audit finding is a powerful second conversation topic — position automated seal integrity verification as compliance infrastructure, not just efficiency. Boards respond to that framing.
 
-**THE ROI ARGUMENT (use these exact numbers)**
+**NEXT STEP:** Call Peter Nguyen this week. Confirm Select Equip is on the shortlist. If no answer, email referencing the Baiada and Hilton Food reference sites.`,
 
-Ryan confirmed: 16 hours/week on manual temperature logging
-- At $35/hr average labour cost = $29,120/year in admin labour
-- Plus compliance risk: FSANZ penalty up to $50,000 per incident
-- Total annual risk-adjusted cost: ~$79,000
+    'beak & johnston': `## APPROACH STRATEGY — BEAK & JOHNSTON
 
-Your solution: $185,000 net (or $170,000 after WA grant)
-ROI: 170,000 / 79,000 = **2.15 years** — present as "under 26 months"
+**THE SITUATION**
+B&J have a live, urgent requirement for MAP tray sealing with a hard 1 October deadline. This is not a prospecting conversation — this is a competitive sales situation where the first credible vendor to respond wins the meeting.
 
-**MARCUS WILL ASK:**
-1. Implementation risk? — 3-month timeline, parallel run, Ryan stays in control
-2. Why now? — WA grant closes May 30, Toll launches Q3
+**PRIMARY CONTACT: Shane Donoghue (Head of Operations)**
 
-**YOUR CLOSE:** The question is not whether to invest — it is whether to invest now at $170K with the grant, or wait until Q3 when the competitive landscape has shifted.`,
-
-    'summit packaging solutions': `## CONTRACT CLOSE STRATEGY — SUMMIT PACKAGING
-
-**SITUATION:** Deal is won. Risk = legal delay by Brett Finucane.
-
-**BRETT FINUCANE MANAGEMENT**
-1. Email Brett directly (cc Alicia): "Happy to jump on a 20-minute call to walk through the IP clauses"
-2. Send him the legal summary PDF before Monday
-3. Give a soft deadline: "Alicia is hoping to countersign Monday"
-
-**MONDAY SIGNING AGENDA**
-1. Congratulate on AIPIA award (2 minutes)
-2. Sign and countersign (10 minutes)
-3. Phase 2 conversation: WA and VIC at marginal cost as existing client
-
-**UPSELL FRAMING:** Phase 2 for WA and VIC would be approximately $180K. As an existing client you get priority scheduling and best rate.`,
-
-    'harvest ridge foods': `## APPROACH STRATEGY — HARVEST RIDGE FOODS
-
-**PRIMARY CONTACT: Patrick Nguyen (Supply Chain Director)**
-
-Patrick is driving the FSANZ compliance project and is motivated to find a solution. He is your champion to Sandra.
+Shane owns the Woolworths Macro project and the October deadline is his problem. He is your champion.
 
 **OPENING MESSAGE**
 
-"Patrick, I have been tracking the FSANZ updated temperature logging requirements coming into effect July 2026 and noticed Harvest Ridge operates across QSR, airline and supermarket — three of the highest-scrutiny categories. Wanted to connect before the compliance window gets tight."
+"Shane, I heard Beak & Johnston has been confirmed as the Woolworths Macro preferred supplier — congratulations. The MAP tray seal requirement for October is a tight window. We commissioned the same configuration for My Muscle Chef and LiteNEasy. Worth 30 minutes this week?"
 
-**PATH TO SANDRA**
+**WHY THIS WINS**
+- Leads with their win (flattery with purpose)
+- Names My Muscle Chef and LiteNEasy — they know these companies, possibly compete with them
+- States the solution directly — "same configuration"
+- 30 minutes is low commitment, easy yes
 
-Sandra Voronova responds exclusively to ROI data. Before your first call with her:
-1. Get Patrick to quantify current manual logging hours per week
-2. Build a simple cost calculation
-3. Present Sandra with: "Your current compliance process costs $X per year. Here is how we reduce that by 80%."
+**ROI FOR TIM GARLICK (CFO)**
+Build the payback model before the meeting:
+- Equipment cost: [your price]
+- Labour savings: 4-6 FTEs × $85K fully loaded = $340-510K/year
+- NSW grant: up to $500K offset
+- Payback: almost certainly under 36 months (PE board threshold)
 
-**NEXT STEP:** Email Patrick today referencing the FSANZ audit notices issued to VIC processors.`
+**CLOSE STRATEGY**
+The October deadline means there is no time for a slow evaluation. After the first meeting, propose a site visit and FAT demonstration within 2 weeks. Create urgency around the equipment order date.`,
+
+    'patties foods group': `## APPROACH STRATEGY — PATTIES FOODS GROUP
+
+**TWO ANGLES, ONE CONVERSATION**
+Patties have two separate equipment needs that can be addressed by the same conversation:
+1. HFFS line replacement (OEM support ending December — hard deadline)
+2. Flow wrap capability for Coles premium pilot (scale decision May)
+
+This is unusual — most conversations are one need. Position Select Equip as able to solve both within the $3.5M approved capex, which simplifies their procurement process.
+
+**PRIMARY CONTACT: Mark Saliba (Production Manager)**
+
+Mark raised the OEM issue to the board — he owns the problem and the urgency. He is your internal champion.
+
+**OPENING MESSAGE**
+
+"Mark, I understand your current HFFS line is reaching end of OEM support in December. We've replaced the same vintage of equipment for several food manufacturers — want to talk through what a specification and timeline looks like to hit the December deadline comfortably?"
+
+**MOVING TO JULIE ANSTEE (GM Operations)**
+
+Julie controls the $3.5M capex. Once Mark is engaged, ask him: "At what point does Julie Anstee get involved in the vendor selection — is she already across the shortlist or does that come after specs are done?"
+
+**THE FAT OFFER**
+
+Scott Morant (Engineering Manager) will be the technical evaluator. Offer a Factory Acceptance Test at Select Equip's Melbourne facility — running Patties' own products on the line before commissioning. This is a risk-reduction tool that engineering managers value highly and that differentiates Select Equip from competitors who don't offer it locally.
+
+**NEXT STEP:** Call Mark Saliba. Reference the December OEM deadline. Offer a site visit to the Melbourne demo facility.`,
+
+    'hazeldenes chicken farm': `## APPROACH STRATEGY — HAZELDENE'S CHICKEN FARM
+
+**THE RIGHT ENTRY POINT: Brett Cummins (Export & Sales Manager)**
+
+The export project (Singapore/HK) is the freshest pain point and it's Brett's. The MAP capability question is blocking his ability to confirm the export timeline to buyers. He needs an answer quickly and is motivated to solve it.
+
+Starting with the export angle is better than leading with throughput or capacity — it's a growth conversation, not a cost conversation, and new CEO David Hazeldene is thinking about growth.
+
+**OPENING MESSAGE TO BRETT**
+
+"Brett, congratulations on the DAFF export licence for Singapore and Hong Kong — that's a significant milestone. The MAP shelf life requirement for chilled poultry is the packaging piece that makes or breaks the program. Worth a quick call to talk through what that looks like?"
+
+**PATH TO DAVID HAZELDENE (CEO)**
+
+New CEOs in their first year are evaluating their supplier relationships. After establishing rapport with Brett, ask for an introduction to David framed around the export growth story — not the equipment. Nobody wants to meet the equipment sales rep. They do want to meet someone who can help them win in Singapore.
+
+**THE KAREN STRETCH CONVERSATION**
+
+Karen owns the Woolworths relationship and the throughput problem. Her conversation is different — data, consistency metrics, Woolworths supplier scorecard. After the export entry, Karen is the bridge to the domestic capacity investment.
+
+**NEXT STEP:** Email Brett Cummins this week. Lead with the export licence congratulations. Ask for 20 minutes on the MAP packaging requirement. Keep it export-focused.`
   },
   firstcall: {
-    'apex protein co': `## FIRST CALL PREP — APEX PROTEIN CO
+    'rivalea foods': `## FIRST CALL PREP — RIVALEA FOODS
+
+**CALL WITH: Peter Nguyen (Engineering & Projects Manager)**
+
+**OBJECTIVE OF THIS CALL**
+Get confirmed on the RFQ vendor shortlist. Understand the specification requirements and timeline. Establish credibility through reference accounts.
 
 **OPENING (30 seconds)**
-"Dean, thanks for taking the call. I saw the Norwood facility expansion and the Chemist Warehouse national listing happening in the same quarter. That is a significant challenge and I thought it was worth 15 minutes to see if there is a fit."
+"Peter, thanks for the time. I know you're in the middle of scoping the tray seal automation for the Corowa capex program — we've done this configuration for Baiada and Hilton Food and I wanted to understand your specification before the RFQ is finalised."
+
+**KEY QUESTIONS TO ASK**
+1. What are the throughput requirements on the fresh pork tray lines — units per hour, how many SKUs, tray formats?
+2. Is the SQF audit finding shaping the specification at all — for example, is in-line seal integrity testing a requirement?
+3. Who else is on the vendor shortlist at this stage?
+4. What does the evaluation process look like from here — RFQ, FAT, site visit?
+5. Is Diane Kowalski involved at this stage of vendor selection?
+
+**REFERENCE TO USE**
+Baiada — similar throughput, similar product type. Offer a reference call with their Engineering Manager.
+
+**YOUR CLOSE**
+"Based on what you've described, I'm confident we have the right configuration. Can I put together a preliminary specification and come to Corowa to walk through it? I'd also like to offer a visit to our Melbourne demo facility — we can run your product formats before you commit to anything."
+
+**WHAT NOT TO DO**
+Don't lead with price. Don't present a brochure. Ask questions first — understand the spec before you propose anything.`,
+
+    'beak & johnston': `## FIRST CALL PREP — BEAK & JOHNSTON
+
+**CALL WITH: Shane Donoghue (Head of Operations)**
+
+**THE SITUATION**
+Shane has a hard October deadline and knows it. He is not browsing — he is actively solving a problem. Your job in this call is to establish that Select Equip can hit the timeline and has done it before.
+
+**OPENING (20 seconds)**
+"Shane, thanks for taking the call. MAP tray seal by 1 October — let me ask you the practical question first: what does your internal approval and procurement timeline look like? Because the commissioning date works back from there and I want to make sure we're realistic."
+
+**WHY THIS OPENING WORKS**
+Starting with the timeline question instead of a pitch shows you understand procurement complexity and you're being straight with him. It builds trust immediately.
 
 **KEY QUESTIONS**
-1. Walk me through how the RTD line procurement is being managed — are you evaluating new suppliers as part of the expansion?
-2. With 520 Chemist Warehouse stores from April, what does your logistics model look like at that volume?
-3. What is your biggest operational concern about the next 6 months?
-4. Who else besides yourself is involved in supplier decisions at this scale?
+1. What are the MAP gas mix requirements for the Woolworths Macro range — CO2/N2 ratio, target residual oxygen?
+2. Tray formats — dimensions, depths, lidding film specification?
+3. What throughput do you need — packs per minute at launch, and what does scale look like if the range expands?
+4. What does your internal capex approval process look like — is the budget already approved or does this need to go to the board?
+5. Is the NSW Food & Agribusiness grant on your radar?
 
-**CLOSE:** "Based on what you have described, I think there is a real fit. Can I come to the Norwood site next week to see the new facility?"`,
+**REFERENCE TO USE**
+My Muscle Chef and LiteNEasy — same MAP configuration, similar timelines. Offer Shane a call with their Operations Manager.
 
-    'harvest ridge foods': `## FIRST CALL PREP — HARVEST RIDGE FOODS
+**YOUR CLOSE**
+"I want to get you a preliminary specification and commissioning timeline within 48 hours so you can see whether we fit your window. Can we schedule a site visit to Emu Plains this week or next?"`,
 
-**CALL WITH: Patrick Nguyen (Supply Chain Director)**
+    'patties foods group': `## FIRST CALL PREP — PATTIES FOODS GROUP
+
+**CALL WITH: Mark Saliba (Production Manager)**
+
+**YOUR MINDSET**
+Mark has a board-level problem with a December deadline. He is not evaluating options casually — he is looking for someone who can take the problem off his plate reliably. Be direct, be specific, demonstrate you've replaced this vintage of equipment before.
 
 **OPENING**
-"Patrick, I have been tracking the FSANZ cold chain compliance update and given Harvest Ridge exposure across QSR, airline and supermarket supply, I wanted to understand where you are at with the July 2026 requirements before the deadline gets tight."
+"Mark, the OEM support ending on the 2011 HFFS line in December — I want to understand the full scope of what's affected before I say anything about solutions. Walk me through the line configuration."
 
 **KEY QUESTIONS**
-1. Where is the FSANZ compliance project currently sitting in your priorities?
-2. How are you currently tracking temperature data across the supply chain?
-3. What would happen to your Qantas Catering contract if you failed a compliance audit?
-4. Is Sandra Voronova involved in the compliance investment decision?
+1. What's the current HFFS line running — throughput, product formats, film types?
+2. Is the flow wrap requirement for the Coles premium range being scoped into the same capex, or is that a separate project?
+3. What's the maximum acceptable downtime window for the changeover — can you afford a full production shutdown for commissioning or does it need to be staged?
+4. Has Scott Morant started the technical specification yet?
+5. What's Julie Anstee's involvement at this stage?
 
-**CLOSE:** "Would it be useful if I put together a compliance readiness assessment specific to Harvest Ridge? I can have something to you within 48 hours."`,
+**THE FAT OFFER**
+"We have a demonstration facility in Melbourne — you can run your product formats on the line before we commission at Bairnsdale. For a December deadline, that de-risks the FAT significantly. Would that be useful to see?"
 
-    'bluecrest logistics': `## PRE-MEETING BRIEF — BLUECREST LOGISTICS
+**YOUR CLOSE**
+"I'd like to come to Bairnsdale this month with Scott to look at the existing line and the site. That gives us everything we need to put a realistic spec and timeline together. What does your schedule look like?"`,
 
-**THURSDAY: Ryan Callister + CFO Marcus Webb**
+    'hazeldenes chicken farm': `## FIRST CALL PREP — HAZELDENE'S CHICKEN FARM
 
-**AGENDA (45 minutes)**
-- 00:00 Introductions (5 min)
-- 00:05 Problem validation — let Ryan present the compliance challenge (10 min)
-- 00:15 Solution overview — focused on ROI, not features (15 min)
-- 00:30 ROI and investment discussion with Marcus (10 min)
-- 00:40 Next steps and timeline (5 min)
+**CALL WITH: Brett Cummins (Export & Sales Manager)**
 
-**LET RYAN OPEN** — he has credibility with Marcus. Brief Ryan beforehand: "Start with the manual process cost — 16 hours a week, $29K a year minimum."
+**OBJECTIVE**
+Establish Select Equip as the solution to Brett's MAP capability question. Get introduced to David Hazeldene and Karen Stretch.
 
-**FOR MARCUS**
-- Use "$170K net after grant" not "$185K"
-- Say "26-month payback" not "under 2 years" — more specific is more credible
-- Have the WA grant application ready to show`,
+**OPENING**
+"Brett, the Singapore and Hong Kong export licence is a big deal — congratulations on getting that through DAFF. The MAP shelf life question is the one I wanted to talk through because it's the piece that determines whether your chilled program is viable at the buyer's end."
 
-    'summit packaging solutions': `## SIGNING MEETING PREP — SUMMIT PACKAGING
+**KEY QUESTIONS**
+1. What shelf life is the Singapore buyer requiring — is 21 days confirmed, or is there flexibility?
+2. Are you looking at a dedicated export line or adapting from an existing domestic line?
+3. What's the timeline to confirm capability to your Singapore buyer?
+4. Is David Hazeldene across the packaging equipment piece or is that staying within operations?
+5. What does the existing tray seal setup look like on the domestic lines — are they running at capacity?
 
-**MONDAY: Alicia Drummond + Paul Drummond**
+**MOVING TO KAREN**
+"The throughput question on the domestic Woolworths lines — is Karen Stretch the right person to talk to about that, or does it all sit with you?"
 
-**YOUR MINDSET:** This meeting is about momentum, not selling. The deal is done.
-
-**BEFORE THE MEETING**
-- Confirm Brett has no outstanding legal questions (email him Sunday evening)
-- Prepare two copies of the contract
-- Prepare the onboarding timeline document to share after signing
-
-**MEETING FLOW**
-1. Thank them for the partnership — brief, genuine, move on
-2. Walk through any final contract points
-3. Sign
-4. Immediately open Phase 2: WA and VIC at marginal cost as existing client
-
-**AFTER SIGNING:** Set the onboarding kick-off date before you leave the room.`
+**YOUR CLOSE**
+"I'd like to put together a preliminary MAP specification for the Singapore shelf life requirement — it'll take me 48 hours. And I'd love to come to Bendigo with the spec to walk through it with you and Karen together. Would that work this month?"`
   }
 }
