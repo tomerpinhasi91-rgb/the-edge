@@ -4,6 +4,7 @@ import { sb, uid } from '../lib/supabase'
 import { initials, loadProfile } from '../lib/helpers'
 import { loadICP, saveICP, EMPTY_ICP, EMPTY_PERSONA, ICP_SIZES } from '../lib/icp'
 import { callAI, extractJSON } from '../lib/ai'
+import { ev } from '../lib/analytics'
 
 const DEAL_SIZES = ['Under $10K', '$10K–$50K', '$50K–$150K', '$150K–$500K', '$500K+']
 const SALES_CYCLES = ['Under 1 month', '1–3 months', '3–6 months', '6–12 months', '12+ months']
@@ -119,6 +120,7 @@ export default function ProfileView() {
     setSaving(true)
     saveProfileToStorage(user.id, profile)
     await new Promise(r => setTimeout(r, 300))
+    ev.profileSaved()
     setSaving(false)
     showToast('Profile saved', 'success')
   }
@@ -127,6 +129,7 @@ export default function ProfileView() {
     setSaving(true)
     saveICP(user.id, icp)
     await new Promise(r => setTimeout(r, 300))
+    ev.icpSaved()
     setSaving(false)
     showToast('ICP saved — Prospect Finder will now score companies', 'success')
   }

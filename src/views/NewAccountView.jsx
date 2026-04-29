@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
+import { ev } from '../lib/analytics'
 
 const STAGES = ['qualify', 'proposal', 'negotiate', 'closing', 'won', 'lost']
 
@@ -25,6 +26,7 @@ export default function NewAccountView({ onSave, onCancel }) {
         createdAt: new Date().toISOString()
       }
       await saveAccount(account)
+      ev.dealCreated(form.name, form.industry)
       showToast(form.name + ' added', 'success')
       onSave(accountId) // ✅ Fixed: was onSave(form.id) — form has no id field
     } catch (e) {

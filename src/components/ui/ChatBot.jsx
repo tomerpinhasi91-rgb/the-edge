@@ -3,6 +3,7 @@ import { useApp } from '../../lib/context'
 import { callAI } from '../../lib/ai'
 import { loadProfile, buildRepContext } from '../../lib/helpers'
 import { loadICP, buildICPContext } from '../../lib/icp'
+import { ev } from '../../lib/analytics'
 import Spinner from './Spinner'
 
 const STARTERS = [
@@ -156,6 +157,7 @@ export default function ChatBot() {
         sessionStorage.setItem(nudgeKey, '1')
         setMessages([{ role: 'assistant', content: msg, _nudge: true }])
         setUnread(true)
+        ev.chatNudgeSeen(msg.includes('Profile') || msg.includes('profile') ? 'profile' : msg.includes('ICP') ? 'icp' : 'general')
       }
     }, 4000)
     return () => clearTimeout(timer)
@@ -163,7 +165,7 @@ export default function ChatBot() {
 
   useEffect(() => {
     if (open && messages.length === 0) setTimeout(() => inputRef.current?.focus(), 150)
-    if (open) setUnread(false) // mark read when opened
+    if (open) { setUnread(false); ev.chatOpened() } // mark read when opened
   }, [open])
 
   useEffect(() => {
@@ -219,6 +221,7 @@ export default function ChatBot() {
 
     const nextMessages = [...messages, userMessage]
     setMessages(nextMessages)
+    ev.chatMessage(!!pendingImage)
 
     // Use pre-written answer for starter chips — no API call needed
     const staticAnswer = !pendingImage && STARTER_ANSWERS[text]

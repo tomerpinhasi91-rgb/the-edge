@@ -4,6 +4,7 @@ import { uid } from '../../lib/supabase'
 import { callAIStream } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_COACH, delay } from '../../lib/demo'
 import { loadProfile, buildRepContext } from '../../lib/helpers'
+import { ev } from '../../lib/analytics'
 import Modal from '../ui/Modal'
 import Spinner from '../ui/Spinner'
 
@@ -107,6 +108,7 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
     if (!form.title.trim()) return showToast('Title required', 'error')
     const activities = [...(account.activities || []), { id: uid(), ...form }]
     await save({ activities })
+    ev.activityLogged(form.type, account.name)
     setShowForm(false)
     setForm({ type: 'call', title: '', date: new Date().toISOString().split('T')[0], notes: '', next: '' })
     showToast('Activity logged', 'success')
@@ -150,6 +152,7 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
       await callAIStream(systemPrompt, [{ role: 'user', content: action.prompt(account, recent) }], 900,
         (_chunk, full) => setAiOutput(full)
       )
+      ev.activityAI(action.label, account._type || 'lead')
     } catch (e) {
       showToast(e.message, 'error')
     }

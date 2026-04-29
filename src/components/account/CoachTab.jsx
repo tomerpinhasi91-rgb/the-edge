@@ -5,6 +5,7 @@ import { callAIStream } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_COACH, delay } from '../../lib/demo'
 import { loadProfile, buildRepContext } from '../../lib/helpers'
 import { loadICP, buildICPContext } from '../../lib/icp'
+import { ev } from '../../lib/analytics'
 import Spinner from '../ui/Spinner'
 
 export default function CoachTab({ account }) {
@@ -79,6 +80,8 @@ export default function CoachTab({ account }) {
       )
       const newSession = { id: uid(), date: new Date().toISOString().split('T')[0], prompt: q, response: result || streamed }
       await saveAccount({ ...account, coach_sessions: [...sessions, newSession] })
+      const presetMatch = PRESETS.find(p => p.prompt === q)
+      ev.coachUsed(presetMatch ? presetMatch.label : 'custom', account.name)
       setPrompt('')
       showToast('Coach response saved', 'success')
     } catch (e) { showToast(e.message, 'error') }

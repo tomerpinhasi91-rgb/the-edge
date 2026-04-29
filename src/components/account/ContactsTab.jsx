@@ -3,6 +3,7 @@ import { useApp } from '../../lib/context'
 import { uid } from '../../lib/supabase'
 import { initials } from '../../lib/helpers'
 import { serperSearch, hunterPersonEmail } from '../../lib/ai'
+import { ev } from '../../lib/analytics'
 import Modal from '../ui/Modal'
 import Spinner from '../ui/Spinner'
 
@@ -85,6 +86,7 @@ export default function ContactsTab({ account }) {
       updated = [...contacts, { id: uid(), ...form }]
     }
     await save({ contacts: updated })
+    if (!editId) ev.contactAdded(form.role)
     setShowForm(false)
     showToast(editId ? 'Contact updated' : 'Contact added', 'success')
   }

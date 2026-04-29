@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
 import { callAI, serperSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../lib/ai'
+import { ev } from '../lib/analytics'
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
 import { initials, cleanDomain, loadProfile } from '../lib/helpers'
 import { loadICP, scoreProspectICP, linkedInSearchStrings, buildICPContext } from '../lib/icp'
@@ -178,6 +179,7 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
       const scored = applyICP(found.slice(0, 12))
       setProspects(scored)
       lsSet(LS_PROSPECTS, { results: scored })
+      ev.prospectSearch(cat + ' ' + loc, scored.length)
       setStatus(found.length > 0
         ? 'Found ' + Math.min(found.length, 12) + ' companies matching "' + cat + '" in ' + loc + (hasICP ? ' — sorted by ICP fit' : '')
         : 'No companies found — try different keywords')
@@ -323,6 +325,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
     const cacheKey = name.toLowerCase().trim().replace(/\s+/g, '_') + (place ? '_' + place.toLowerCase() : '')
     const cachedProfile = getResearchCache(cacheKey)
     if (cachedProfile) {
+      ev.companyResearched(name, true)
       setProfile(cachedProfile)
       lsSet(LS_RESEARCH, cachedProfile)
       setStatus('Found: ' + cachedProfile.name + ' (cached — refresh to update)')
@@ -407,6 +410,7 @@ Rules: 3-5 signals. 3 talking points. Up to 3 stakeholders ONLY if full names ap
           } catch (e) {} // email enrichment is best-effort
         }
         setResearchCache(cacheKey, parsed) // #8 cache for 24h
+        ev.companyResearched(parsed.name, false)
         setProfile(parsed)
         lsSet(LS_RESEARCH, parsed)
         setStatus('Found: ' + parsed.name)
@@ -465,6 +469,7 @@ Rules: 3-5 signals. 3 talking points. Up to 3 stakeholders ONLY if full names ap
       lead.score = score; lead.scoreReason = scoreReason
 
       await saveAccount(lead)
+      ev.leadSaved(profile.name, profile.industry)
       showToast(profile.name + ' saved — score: ' + score + '/100', 'success')
       if (setActiveId) setActiveId(lead.id)
       if (setView) setView('lead')
@@ -878,6 +883,7 @@ function EmailFinder({ user, saveAccount, showToast, leads, initialQuery }) {
     try {
       const data = await hunterSearch(searchQ)
       setEmails(data.emails || []); setOrg(data.organization || ''); setPattern(data.pattern || '')
+      ev.emailFinderRun(searchQ)
       setStatus(data.emails?.length > 0 ? data.emails.length + ' emails found for ' + (data.organization || searchQ) : 'No emails found — try the company domain (e.g. company.com.au)')
     } catch (e) { showToast(e.message, 'error'); setStatus('Search failed') }
     setLoading(false)

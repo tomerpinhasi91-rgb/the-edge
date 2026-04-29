@@ -5,6 +5,7 @@ import { callAI, serperSearch, tavilySearch, extractSignals, buildSearchQuery, b
 import { isDemoUser, getDemoKey, DEMO_SWEEPS, delay } from '../../lib/demo'
 import { PRIORITY_COLORS, PRIORITY_BG, loadProfile } from '../../lib/helpers'
 import { loadICP } from '../../lib/icp'
+import { ev } from '../../lib/analytics'
 import MarketIntelPanel from '../shared/MarketIntelPanel'
 import Spinner from '../ui/Spinner'
 
@@ -62,6 +63,7 @@ export default function IntelligenceTab({ account }) {
       if (cached.signals) setParsedSignals(cached.signals)
       else if (cached.text) setSweepOutput(cached.text)
       setCacheHit(true)
+      ev.intelSweep(rawQuery, true)
       setSweepLoading(false)
       return
     }
@@ -102,6 +104,7 @@ export default function IntelligenceTab({ account }) {
         setSweepOutput(result)
         setResearchCache(cacheKey, { text: result })
       }
+      ev.intelSweep(rawQuery, false)
     } catch (e) { showToast(e.message, 'error') }
     setSweepLoading(false)
   }
@@ -110,6 +113,8 @@ export default function IntelligenceTab({ account }) {
     const toAdd = parsedSignals.filter(s => s._selected !== false).map(({ _selected, ...s }) => ({ id: uid(), date: new Date().toISOString().split('T')[0], ...s }))
     if (!toAdd.length) return showToast('Select at least one signal', 'error')
     await save({ signals: [...(account.signals || []), ...toAdd] })
+    const topPriority = toAdd.find(s => s.priority === 'urgent')?.priority || toAdd[0]?.priority || 'intel'
+    ev.signalSaved(toAdd.length, topPriority)
     setParsedSignals([])
     showToast(`${toAdd.length} signal${toAdd.length !== 1 ? 's' : ''} saved`, 'success')
   }
