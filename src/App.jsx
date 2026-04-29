@@ -3,6 +3,7 @@ import { useApp } from './lib/context'
 import Sidebar from './components/layout/Sidebar'
 import MobileNav from './components/layout/MobileNav'
 import Toast from './components/ui/Toast'
+import ErrorBoundary from './components/ui/ErrorBoundary'
 import AuthScreen from './views/AuthScreen'
 import ProfileView from './views/ProfileView'
 import AdminView from './views/AdminView'
@@ -112,11 +113,12 @@ export default function App() {
     <div className="app">
       <Sidebar view={view} setView={setView} activeId={activeId} setActiveId={setActiveId} />
       <div className="main">
-        {/* Show empty state banner inline for new users on any non-setup view */}
-        {isNewUser && view !== 'new-account' && view !== 'leadroom' && view !== 'profile' && view !== 'admin'
-          ? <EmptyState setView={setView} />
-          : renderMain()
-        }
+        <ErrorBoundary>
+          {isNewUser && view !== 'new-account' && view !== 'leadroom' && view !== 'profile' && view !== 'admin'
+            ? <EmptyState setView={setView} />
+            : renderMain()
+          }
+        </ErrorBoundary>
       </div>
       <MobileNav view={view} setView={setView} setActiveId={setActiveId} accounts={accounts} user={user} isAdmin={accounts.__isAdmin} />
       <Toast />

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { sb } from '../lib/supabase'
 import { useApp } from '../lib/context'
 import { getTokenStats } from '../lib/ai'
 import { PRIORITY_COLORS, PRIORITY_BG, STAGE_LABELS } from '../lib/helpers'
@@ -63,13 +62,14 @@ export default function AdminView() {
   useEffect(() => {
     if (!isAdmin) return
 
-    // Load accounts table (all users' data)
-    const accountsPromise = sb.from('accounts')
-      .select('user_id, data, updated_at, created_at')
-      .then(({ data, error }) => {
-        if (error) { showToast('Failed to load accounts data', 'error'); return [] }
-        return data || []
-      })
+    // Load accounts via service-role API (works with RLS enabled)
+    const accountsPromise = fetch('/api/admin-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }).then(r => r.json()).then(res => {
+      if (res.error) { showToast('Failed to load accounts: ' + res.error, 'error'); return [] }
+      return res.rows || []
+    }).catch(() => [])
 
     // Load auth users via admin API (shows users with zero accounts too)
     const authPromise = fetch('/api/admin-users', {

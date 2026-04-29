@@ -105,7 +105,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
 
       {tab === 'overview' && <LeadOverview lead={lead} save={save} promote={promote} showToast={showToast} user={user} onEdit={openEdit} />}
       {tab === 'intelligence' && <LeadIntelligence lead={lead} save={save} user={user} showToast={showToast} />}
-      {tab === 'activities' && <ActivitiesTab account={lead} />}
+      {tab === 'activities' && <ActivitiesTab account={lead} isLead={true} onConvert={promote} />}
       {tab === 'contacts' && <LeadContacts lead={lead} save={save} showToast={showToast} />}
       {tab === 'notes' && <LeadNotes lead={lead} save={save} showToast={showToast} />}
       {tab === 'coach' && <LeadCoach lead={lead} save={save} user={user} showToast={showToast} />}
@@ -408,7 +408,7 @@ function LeadIntelligence({ lead, save, user, showToast }) {
           <div className="card-title" style={{ marginBottom: 12 }}>📊 Market intel — {lead.industry}</div>
           <MarketIntelPanel
             initialIndustry={lead.industry}
-            initialRegion={lead.location ? lead.location.split(',').pop().trim() : 'Australia'}
+            initialRegion={lead.location ? lead.location.split(',').map(p => p.trim()).filter(p => p && !/^\d+$/.test(p)).pop() || 'Australia' : 'Australia'}
             user={user}
             showToast={showToast}
             compact={true}

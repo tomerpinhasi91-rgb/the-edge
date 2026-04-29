@@ -159,7 +159,7 @@ export default function IntelligenceTab({ account }) {
           <div className="card-title" style={{ marginBottom: 12 }}>📊 Market intel — {account.industry}</div>
           <MarketIntelPanel
             initialIndustry={account.industry}
-            initialRegion={account.location ? account.location.split(',').pop().trim() : 'Australia'}
+            initialRegion={account.location ? account.location.split(',').map(p => p.trim()).filter(p => p && !/^\d+$/.test(p)).pop() || 'Australia' : 'Australia'}
             user={user}
             showToast={showToast}
             compact={true}

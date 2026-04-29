@@ -7,9 +7,7 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true }
 })
 
-export const ADMIN_EMAIL = 'tomerpinhasi91@gmail.com'
-
-export const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10)
+export const uid = () => crypto.randomUUID()
 
 export const db = {
   async loadAccounts(userId) {

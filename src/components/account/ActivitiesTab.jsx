@@ -10,7 +10,7 @@ import Spinner from '../ui/Spinner'
 const TYPES = ['call', 'meeting', 'email', 'note', 'demo', 'proposal']
 const TYPE_ICONS = { call: '📞', meeting: '🤝', email: '✉️', note: '📝', demo: '💻', proposal: '📄' }
 
-const AI_ACTIONS = [
+const DEAL_AI_ACTIONS = [
   {
     label: '✉️ Follow up email',
     prompt: (account, recent) =>
@@ -53,7 +53,45 @@ const AI_ACTIONS = [
   },
 ]
 
-export default function ActivitiesTab({ account }) {
+const LEAD_AI_ACTIONS = [
+  {
+    label: '✉️ First outreach email',
+    prompt: (account, recent) =>
+      'Write a compelling cold outreach email to the key contact at this prospect. Reference any signals or talking points if available. Make it concise, specific, and end with a clear ask. Output subject line then body only.\n\nLEAD: ' + account.name +
+      ' | Industry: ' + (account.industry || '') +
+      ' | Location: ' + (account.location || '') +
+      ' | Opportunity: ' + (account.opportunity || '') +
+      ' | Why this lead: ' + (account.why || '') +
+      '\nRECENT TOUCHPOINTS:\n' + recent
+  },
+  {
+    label: '📞 Discovery call script',
+    prompt: (account, recent) =>
+      'Write a first-call discovery script for this prospect. Include: warm opener, 4 key discovery questions to uncover pain, value bridge statement, objection handles for "not interested" and "send me info", and a clear next step close.\n\nLEAD: ' + account.name +
+      ' | Industry: ' + (account.industry || '') +
+      ' | Opportunity: ' + (account.opportunity || '') +
+      '\nRECENT TOUCHPOINTS:\n' + recent
+  },
+  {
+    label: '🎯 Next best actions',
+    prompt: (account, recent) =>
+      'You are a B2B sales coach. Given this prospect and the touchpoints so far, recommend the 3-5 highest-impact next actions to move this lead forward. Be specific and actionable.\n\nLEAD: ' + account.name +
+      ' | Industry: ' + (account.industry || '') +
+      ' | Timeline: ' + (account.timeline || 'unknown') +
+      ' | Next meeting: ' + (account.nextMeeting || 'not set') +
+      '\nRECENT TOUCHPOINTS:\n' + recent
+  },
+  {
+    label: '📅 Meeting agenda',
+    prompt: (account, recent) =>
+      'Build a tight first-meeting agenda for this prospect. Include a strong opener, 3-4 discovery questions, a value positioning moment, and a concrete next step / close. Keep it to 45 minutes.\n\nLEAD: ' + account.name +
+      ' | Industry: ' + (account.industry || '') +
+      ' | Opportunity: ' + (account.opportunity || '') +
+      '\nRECENT TOUCHPOINTS:\n' + recent
+  },
+]
+
+export default function ActivitiesTab({ account, isLead = false, onConvert }) {
   const { saveAccount, showToast, user } = useApp()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ type: 'call', title: '', date: new Date().toISOString().split('T')[0], notes: '', next: '' })
@@ -61,6 +99,7 @@ export default function ActivitiesTab({ account }) {
   const [aiOutput, setAiOutput] = useState('')
   const [aiLabel, setAiLabel] = useState('')
 
+  const AI_ACTIONS = isLead ? LEAD_AI_ACTIONS : DEAL_AI_ACTIONS
   const save = (updates) => saveAccount({ ...account, ...updates })
   const setF = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -196,6 +235,19 @@ export default function ActivitiesTab({ account }) {
       {sorted.length === 0 && (
         <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af', fontSize: 13 }}>
           No activities logged yet — log your first touchpoint above
+        </div>
+      )}
+
+      {/* Convert to deal CTA — shown at bottom when this is a lead with activity */}
+      {isLead && onConvert && sorted.length > 0 && (
+        <div style={{ background: '#FAEEDA', border: '0.5px solid #BA7517', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 8 }}>
+          <div>
+            <div style={{ fontWeight: 600, color: '#7A4A00', fontSize: 13, marginBottom: 2 }}>Ready to move this forward? 🚀</div>
+            <div style={{ fontSize: 12, color: '#BA7517' }}>Convert to a deal account to unlock pipeline stages, risk tracking and full deal management.</div>
+          </div>
+          <button className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap', flexShrink: 0 }} onClick={onConvert}>
+            Convert to deal →
+          </button>
         </div>
       )}
 
