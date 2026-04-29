@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { sb, db, uid } from './supabase'
+import { identifyUser, resetAnalytics, ev } from './analytics'
 
 const AppContext = createContext(null)
 export const useApp = () => useContext(AppContext)
@@ -67,6 +68,7 @@ export function AppProvider({ children }) {
       const u = session?.user ?? null
       setUser(u)
       if (u) {
+        identifyUser(u)
         loadAccounts(u.id)
         checkIsAdmin(u.email).then(setIsAdmin)
       }
@@ -77,11 +79,14 @@ export function AppProvider({ children }) {
       const u = session?.user ?? null
       setUser(u)
       if (u) {
+        identifyUser(u)
+        ev.signIn()
         loadAccounts(u.id)
         checkIsAdmin(u.email).then(setIsAdmin)
       } else {
         setAccounts([])
         setIsAdmin(false)
+        resetAnalytics()
       }
     })
 

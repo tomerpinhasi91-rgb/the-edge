@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client'
 import { AppProvider } from './lib/context'
 import App from './App'
 import './index.css'
+import { initAnalytics } from './lib/analytics'
+
+initAnalytics()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
