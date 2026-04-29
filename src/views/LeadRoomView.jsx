@@ -4,7 +4,7 @@ import { uid } from '../lib/supabase'
 import { callAI, serperSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../lib/ai'
 import { ev } from '../lib/analytics'
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
-import { initials, cleanDomain, loadProfile } from '../lib/helpers'
+import { initials, cleanDomain, loadProfile, exportAccountsCSV } from '../lib/helpers'
 import { loadICP, scoreProspectICP, linkedInSearchStrings, buildICPContext } from '../lib/icp'
 import MarketIntelPanel from '../components/shared/MarketIntelPanel'
 import Spinner from '../components/ui/Spinner'
@@ -1151,7 +1151,10 @@ function SavedLeads({ leads, deleteAccount, setActiveId, setView, showToast }) {
 
   return (
     <div>
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>{leads.length} saved lead{leads.length !== 1 ? 's' : ''}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: '#6b7280' }}>{leads.length} saved lead{leads.length !== 1 ? 's' : ''}</div>
+        <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => exportAccountsCSV(leads, 'leads-' + new Date().toISOString().split('T')[0] + '.csv')}>↓ Export CSV</button>
+      </div>
       {[...leads].sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || '')).map(l => (
         <div key={l.id} style={{ background: 'white', border: '0.5px solid #e5e5e5', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => openLead(l)}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: '#FAEEDA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#BA7517', flexShrink: 0 }}>{initials(l.name)}</div>

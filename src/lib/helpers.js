@@ -50,6 +50,69 @@ export const loadProfile = (userId) => {
   } catch (e) { return null }
 }
 
+// ── CSV Export ───────────────────────────────────────────────────
+const csvCell = (val) => {
+  if (val === null || val === undefined) return ''
+  const s = String(val).replace(/\r?\n/g, ' ')
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s
+}
+
+const csvRow = (cells) => cells.map(csvCell).join(',')
+
+export const exportAccountsCSV = (accounts, filename = 'export.csv') => {
+  const headers = [
+    'Type', 'Name', 'Industry', 'Location', 'Website', 'Size', 'Revenue', 'Description',
+    'Score', 'Stage', 'Deal Value ($)', 'Opportunity', 'Competitors', 'Timeline',
+    'Notes',
+    'Signal 1', 'Signal 2', 'Signal 3',
+    'Contact 1 Name', 'Contact 1 Role', 'Contact 1 Email', 'Contact 1 LinkedIn',
+    'Contact 2 Name', 'Contact 2 Role', 'Contact 2 Email', 'Contact 2 LinkedIn',
+    'Contact 3 Name', 'Contact 3 Role', 'Contact 3 Email', 'Contact 3 LinkedIn',
+    'Last Activity Type', 'Last Activity Date', 'Last Activity Notes',
+    'Saved / Created Date',
+  ]
+
+  const rows = accounts.map(a => {
+    const signals = [...(a.signals || [])].sort((x, y) => (y.date || '').localeCompare(x.date || '')).slice(0, 3)
+    const contacts = (a.contacts || []).slice(0, 3)
+    const activities = [...(a.activities || [])].sort((x, y) => (y.date || '').localeCompare(x.date || ''))
+    const lastAct = activities[0] || {}
+
+    const contactCells = (idx) => {
+      const c = contacts[idx]
+      if (!c) return ['', '', '', '']
+      return [c.name || '', c.role || '', c.email || '', c.linkedin || '']
+    }
+
+    return csvRow([
+      a._type === 'lead' ? 'Lead' : 'Deal',
+      a.name, a.industry, a.location, a.website, a.size, a.revenue, a.description,
+      a.score || '',
+      a.stage || '',
+      a.dealValue || '',
+      a.opportunity || '',
+      a.competitors || '',
+      a.timeline || '',
+      a.notes || '',
+      signals[0]?.title || '', signals[1]?.title || '', signals[2]?.title || '',
+      ...contactCells(0), ...contactCells(1), ...contactCells(2),
+      lastAct.type || '', lastAct.date || '', lastAct.notes || '',
+      a.savedAt || a.createdAt || '',
+    ])
+  })
+
+  const csv = [csvRow(headers), ...rows].join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 export const buildRepContext = (profile) => {
   if (!profile) return { repName: '', repCtx: '' }
   const repName = [profile.firstName, profile.lastName].filter(Boolean).join(' ')

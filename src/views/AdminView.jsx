@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { getTokenStats } from '../lib/ai'
-import { PRIORITY_COLORS, PRIORITY_BG, STAGE_LABELS } from '../lib/helpers'
+import { PRIORITY_COLORS, PRIORITY_BG, STAGE_LABELS, exportAccountsCSV } from '../lib/helpers'
 
 const TABS = [
   { key: 'users', label: 'Users' },
@@ -346,6 +346,22 @@ export default function AdminView() {
       {/* ── USERS TAB ── */}
       {tab === 'users' && (
         <>
+          {/* New users in last 24h banner */}
+          {(() => {
+            const newToday = allUsers.filter(u => u.created_at && Date.now() - new Date(u.created_at).getTime() < 86400000)
+            if (!newToday.length) return null
+            return (
+              <div style={{ background: '#e1f5ee', border: '0.5px solid #9FE1CB', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 20 }}>🎉</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0F6E56' }}>{newToday.length} new user{newToday.length !== 1 ? 's' : ''} in the last 24 hours</div>
+                  <div style={{ fontSize: 12, color: '#0F6E56', opacity: 0.8 }}>{newToday.map(u => u.email).join(', ')}</div>
+                </div>
+                <a href="https://us.posthog.com" target="_blank" rel="noopener noreferrer" className="btn btn-sm" style={{ background: '#0F6E56', color: 'white', fontSize: 11 }}>View in PostHog →</a>
+              </div>
+            )
+          })()}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
             {[
               { label: 'Total users', value: allUsers.length, color: '#0F6E56' },
@@ -369,7 +385,7 @@ export default function AdminView() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: '0.5px solid #e5e5e5' }}>
-                    {['Email', 'Joined', 'Last sign-in', 'Leads', 'Deals', 'Signals', 'Coach', 'Status', ''].map(h => (
+                    {['Email', 'Joined', 'Last sign-in', 'Leads', 'Deals', 'Signals', 'Coach', 'Status', 'PostHog', ''].map(h => (
                       <th key={h} style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: '#6b7280', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -401,6 +417,9 @@ export default function AdminView() {
                           </span>
                         </td>
                         <td style={{ padding: '10px 8px' }}>
+                          <a href={`https://us.posthog.com/project/~/person/${u.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#185FA5' }}>Events ↗</a>
+                        </td>
+                        <td style={{ padding: '10px 8px' }}>
                           <button className="btn btn-secondary btn-sm" onClick={() => setSelectedUser(u.id)}>View →</button>
                         </td>
                       </tr>
@@ -413,6 +432,19 @@ export default function AdminView() {
               </table>
             )}
           </div>
+          {/* Export buttons */}
+          {!loading && allRows.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}
+                onClick={() => exportAccountsCSV(allRows.filter(r => r.data?._type === 'lead').map(r => r.data), 'all-leads-' + new Date().toISOString().split('T')[0] + '.csv')}>
+                ↓ Export all leads CSV
+              </button>
+              <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}
+                onClick={() => exportAccountsCSV(allRows.filter(r => r.data?._type === 'account').map(r => r.data), 'all-deals-' + new Date().toISOString().split('T')[0] + '.csv')}>
+                ↓ Export all deals CSV
+              </button>
+            </div>
+          )}
         </>
       )}
 

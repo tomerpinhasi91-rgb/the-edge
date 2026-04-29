@@ -83,6 +83,15 @@ export function AppProvider({ children }) {
         ev.signIn()
         loadAccounts(u.id)
         checkIsAdmin(u.email).then(setIsAdmin)
+        // Notify admin if this is a brand-new signup (created within last 90s)
+        const ageMs = u.created_at ? Date.now() - new Date(u.created_at).getTime() : Infinity
+        if (ageMs < 90000) {
+          fetch('/api/notify-new-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: u.email, userId: u.id, signedUpAt: u.created_at })
+          }).catch(() => {}) // fire and forget
+        }
       } else {
         setAccounts([])
         setIsAdmin(false)

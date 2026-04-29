@@ -5,6 +5,7 @@ import MobileNav from './components/layout/MobileNav'
 import Toast from './components/ui/Toast'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 import ChatBot from './components/ui/ChatBot'
+import OnboardingModal from './components/ui/OnboardingModal'
 import AuthScreen from './views/AuthScreen'
 import ProfileView from './views/ProfileView'
 import AdminView from './views/AdminView'
@@ -12,6 +13,7 @@ import AccountView from './views/AccountView'
 import LeadView from './views/LeadView'
 import LeadRoomView from './views/LeadRoomView'
 import NewAccountView from './views/NewAccountView'
+import { loadProfile, exportAccountsCSV } from './lib/helpers'
 
 const persistView = (v) => { try { localStorage.setItem('te_view', v) } catch (e) {} }
 const getPersistedView = () => { try { return localStorage.getItem('te_view') || 'leadroom' } catch (e) { return 'leadroom' } }
@@ -70,9 +72,23 @@ function EmptyState({ setView }) {
 }
 
 export default function App() {
-  const { user, loading, accounts } = useApp()
+  const { user, loading, accounts, dealAccounts } = useApp()
   const [view, setViewRaw] = useState(getPersistedView)
   const [activeId, setActiveIdRaw] = useState(getPersistedActive)
+
+  // Show onboarding modal for new users who haven't filled in their profile
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  useEffect(() => {
+    if (!user) return
+    const done = localStorage.getItem('te_onboarded_' + user.id)
+    if (done) return
+    const profile = loadProfile(user.id)
+    // If no profile saved yet, show onboarding after a short delay
+    if (!profile || (!profile.firstName && !profile.whatYouSell)) {
+      const t = setTimeout(() => setShowOnboarding(true), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [user])
 
   const setView = (v) => { setViewRaw(v); persistView(v) }
   const setActiveId = (id) => { setActiveIdRaw(id); persistActive(id) }
@@ -124,6 +140,7 @@ export default function App() {
       <MobileNav view={view} setView={setView} setActiveId={setActiveId} accounts={accounts} user={user} isAdmin={accounts.__isAdmin} />
       <ChatBot />
       <Toast />
+      {showOnboarding && <OnboardingModal onDone={() => setShowOnboarding(false)} />}
     </div>
   )
 }
