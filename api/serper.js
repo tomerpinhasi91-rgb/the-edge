@@ -37,25 +37,30 @@ module.exports = async function handler(req, res) {
   const API_KEY = process.env.SERPER_API_KEY;
   if (!API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY not configured' });
 
-  const { query, num, gl, hl } = req.body || {};
+  const { query, num, gl, hl, dateRestrict } = req.body || {};
   if (!query) return res.status(400).json({ error: 'query required' });
 
   const headers = { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY };
 
+  // #3: date-restrict web search to past year for relevance; news to past 3 months
+  const searchBody = { q: query, gl: gl || 'au', hl: hl || 'en', num: num || 6 };
+  if (dateRestrict !== false) searchBody.tbs = 'qdr:y';  // past 12 months
+  const newsBody   = { q: query, gl: 'au', hl: 'en', num: 4, tbs: 'qdr:m3' }; // past 3 months
+
   try {
     const [searchRes, newsRes] = await Promise.all([
-      httpsPost('https://google.serper.dev/search', headers, { q: query, gl: gl || 'au', hl: hl || 'en', num: num || 8 }),
-      httpsPost('https://google.serper.dev/news', headers, { q: query, gl: 'au', hl: 'en', num: 5 })
+      httpsPost('https://google.serper.dev/search', headers, searchBody),
+      httpsPost('https://google.serper.dev/news',   headers, newsBody)
     ]);
 
     if (!searchRes.ok) return res.status(searchRes.status).json({ error: searchRes.data?.message || 'Serper error' });
 
     return res.status(200).json({
-      organic: searchRes.data.organic || [],
+      organic:        searchRes.data.organic        || [],
       knowledgeGraph: searchRes.data.knowledgeGraph || null,
-      answerBox: searchRes.data.answerBox || null,
-      news: newsRes.data.news || [],
-      peopleAlsoAsk: searchRes.data.peopleAlsoAsk || []
+      answerBox:      searchRes.data.answerBox      || null,
+      news:           newsRes.ok ? (newsRes.data.news || []) : [],
+      peopleAlsoAsk:  searchRes.data.peopleAlsoAsk  || []
     });
   } catch(err) {
     console.error('Serper proxy error:', err);

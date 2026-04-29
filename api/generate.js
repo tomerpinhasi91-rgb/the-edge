@@ -1,5 +1,12 @@
 const https = require('https');
 
+// Allowed models — whitelist to prevent abuse
+const ALLOWED_MODELS = {
+  'claude-sonnet-4-5': true,
+  'claude-haiku-4-5':  true,
+};
+const DEFAULT_MODEL = 'claude-sonnet-4-5';
+
 function httpsPost(url, headers, body) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
@@ -34,11 +41,14 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const { system, messages, max_tokens, use_search, tools } = req.body;
+  const { system, messages, max_tokens, use_search, tools, model, stream } = req.body;
   if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages required' });
 
+  // #9 tiered model — validate, default to sonnet
+  const selectedModel = (model && ALLOWED_MODELS[model]) ? model : DEFAULT_MODEL;
+
   const body = {
-    model: 'claude-sonnet-4-5',
+    model: selectedModel,
     max_tokens: max_tokens || 800,
     system: system || '',
     messages
@@ -55,6 +65,44 @@ module.exports = async function handler(req, res) {
 
   if (use_search || tools) headers['anthropic-beta'] = 'web-search-2025-03-05';
 
+  // ── #11 Streaming path ──────────────────────────────────────────
+  if (stream) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    body.stream = true;
+    const data = JSON.stringify(body);
+    const urlObj = new URL('https://api.anthropic.com/v1/messages');
+    const streamOpts = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname,
+      method: 'POST',
+      headers: { ...headers, 'Content-Length': Buffer.byteLength(data) }
+    };
+
+    const anthropicReq = https.request(streamOpts, (anthropicRes) => {
+      // Pipe SSE events directly to client
+      anthropicRes.on('data', chunk => {
+        try { res.write(chunk); } catch (e) {}
+      });
+      anthropicRes.on('end', () => {
+        try { res.end(); } catch (e) {}
+      });
+      anthropicRes.on('error', (err) => {
+        try { res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`); res.end(); } catch (e) {}
+      });
+    });
+    anthropicReq.on('error', (err) => {
+      try { res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`); res.end(); } catch (e) {}
+    });
+    anthropicReq.write(data);
+    anthropicReq.end();
+    return;
+  }
+
+  // ── Standard non-streaming path ─────────────────────────────────
   try {
     const result = await httpsPost('https://api.anthropic.com/v1/messages', headers, body);
 

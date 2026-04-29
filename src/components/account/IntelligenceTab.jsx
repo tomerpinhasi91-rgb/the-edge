@@ -1,32 +1,49 @@
 import { useState } from 'react'
 import { useApp } from '../../lib/context'
 import { uid } from '../../lib/supabase'
-import { callAI, serperSearch, tavilySearch, extractSignals } from '../../lib/ai'
+import { callAI, serperSearch, tavilySearch, extractSignals, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_SWEEPS, delay } from '../../lib/demo'
-import { PRIORITY_COLORS, PRIORITY_BG } from '../../lib/helpers'
+import { PRIORITY_COLORS, PRIORITY_BG, loadProfile } from '../../lib/helpers'
+import { loadICP } from '../../lib/icp'
 import MarketIntelPanel from '../shared/MarketIntelPanel'
 import Spinner from '../ui/Spinner'
 
+// #4 Structured output prompt with explicit schema + example
+const SWEEP_PROMPT = (ctx) =>
+  `B2B sales intelligence analyst. Return ONLY a JSON array — no markdown, no preamble.
+
+Schema: [{"priority":"urgent"|"watch"|"intel"|"grant","title":"one line","body":"2-3 sentences with specific facts","action":"one concrete next step","source":"publication name","source_url":"https://..."}]
+
+Example: [{"priority":"urgent","title":"Apex secures $12M Series B","body":"Apex Protein Co closed a Series B in March 2025. Funds earmarked for production expansion. Strong procurement spend signal.","action":"Call procurement this week while budgets are fresh","source":"AFR","source_url":"https://afr.com/example"}]
+
+Rules: 3-5 signals. Specific facts only. Omit vague items.
+
+Context: ${ctx}`
+
 export default function IntelligenceTab({ account }) {
   const { saveAccount, showToast, user } = useApp()
-  const [sweepInput, setSweepInput] = useState(account.name + ' news 2026')
+  const [sweepInput, setSweepInput] = useState(account.name + ' news ' + new Date().getFullYear())
   const [sweepLoading, setSweepLoading] = useState(false)
   const [parsedSignals, setParsedSignals] = useState([])
   const [sweepOutput, setSweepOutput] = useState('')
+  const [cacheHit, setCacheHit] = useState(false)
 
   const save = (updates) => saveAccount({ ...account, ...updates })
 
+  const profile = loadProfile(user?.id)
+  const icp     = loadICP(user?.id)
+
   const QUICK = [
-    account.name + ' news 2026',
-    account.industry + ' trends 2026',
+    account.name + ' news ' + new Date().getFullYear(),
+    account.industry + ' trends ' + new Date().getFullYear(),
     'Grant opportunities ' + (account.location || 'Australia'),
     'Competitor moves ' + (account.name || '')
   ]
 
   const runSweep = async (override) => {
-    const query = override !== undefined ? override : sweepInput
-    if (!query.trim()) return
-    setSweepLoading(true); setSweepOutput(''); setParsedSignals([])
+    const rawQuery = override !== undefined ? override : sweepInput
+    if (!rawQuery.trim()) return
+    setSweepLoading(true); setSweepOutput(''); setParsedSignals([]); setCacheHit(false)
 
     // Demo mode
     if (isDemoUser(user)) {
@@ -38,26 +55,53 @@ export default function IntelligenceTab({ account }) {
       setSweepLoading(false); return
     }
 
+    // #8 Check cache first
+    const cacheKey = 'sweep_' + rawQuery.toLowerCase().trim().replace(/\s+/g, '_')
+    const cached = getResearchCache(cacheKey)
+    if (cached) {
+      if (cached.signals) setParsedSignals(cached.signals)
+      else if (cached.text) setSweepOutput(cached.text)
+      setCacheHit(true)
+      setSweepLoading(false)
+      return
+    }
+
     try {
       const ctx = `Company: ${account.name} | Industry: ${account.industry || ''} | Location: ${account.location || ''} | Stage: ${account.stage || ''}`
-      const fullQuery = query + ' ' + account.name + ' ' + (account.industry || '') + ' ' + (account.location || '')
-      const [serper, tavily] = await Promise.allSettled([serperSearch(fullQuery), tavilySearch(fullQuery, 5)])
-      let context = ''
-      if (serper.status === 'fulfilled') {
-        const news = serper.value.news || [], organic = serper.value.organic || []
-        if (news.length) context += 'GOOGLE NEWS:\n' + news.slice(0, 5).map((n, i) => `[${i}] ${n.title} — ${n.date || 'recent'}: ${n.snippet} (${n.link})`).join('\n') + '\n\n'
-        if (organic.length) context += 'WEB:\n' + organic.slice(0, 4).map(r => `${r.title}: ${(r.snippet || '').slice(0, 200)}`).join('\n')
-      }
-      if (tavily.status === 'fulfilled') context += '\n' + (tavily.value.results || []).slice(0, 3).map(r => r.title + ': ' + (r.content || '').slice(0, 150)).join('\n')
 
-      const prompt = `B2B sales intelligence analyst. Return ONLY valid JSON array: [{"priority":"urgent"|"watch"|"intel"|"grant","title":"one line","body":"2-3 sentences with specific facts","action":"one next step TODAY","source":"publication","source_url":"URL"}]. 3-5 signals. Context: ${ctx}`
-      const result = context.length > 100
-        ? await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 800, false)
-        : await callAI(prompt, [{ role: 'user', content: 'Find signals: ' + fullQuery }], 800, true)
+      // #1 #6 Enhance query with profile/ICP context
+      const enhancedQuery = buildSearchQuery(
+        rawQuery + ' ' + account.name + ' ' + (account.industry || ''),
+        profile,
+        icp
+      )
+
+      // #2 #7 Parallel search + clean deduplicated context
+      const [serper, tavily] = await Promise.allSettled([
+        serperSearch(enhancedQuery),
+        tavilySearch(enhancedQuery, 4)
+      ])
+
+      const context = buildAIContext(
+        serper.status === 'fulfilled' ? serper.value : null,
+        tavily.status === 'fulfilled' ? tavily.value : null,
+        { maxSnippet: 150, maxNews: 4, maxOrganic: 3, maxTavily: 3 }
+      )
+
+      // #4 Structured prompt
+      const prompt = SWEEP_PROMPT(ctx)
+      const result = context.length > 80
+        ? await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 700, false)
+        : await callAI(prompt, [{ role: 'user', content: 'Find intelligence signals for: ' + enhancedQuery }], 700, true)
 
       const parsed = extractSignals(result)
-      if (parsed && parsed.length) { setParsedSignals(parsed); setSweepOutput('') }
-      else setSweepOutput(result)
+      if (parsed && parsed.length) {
+        setParsedSignals(parsed)
+        setResearchCache(cacheKey, { signals: parsed }) // #8 cache
+      } else {
+        setSweepOutput(result)
+        setResearchCache(cacheKey, { text: result })
+      }
     } catch (e) { showToast(e.message, 'error') }
     setSweepLoading(false)
   }
@@ -71,7 +115,6 @@ export default function IntelligenceTab({ account }) {
   }
 
   const deleteSignal = async (id) => save({ signals: (account.signals || []).filter(s => s.id !== id) })
-
   const toggleSignal = (i) => setParsedSignals(prev => prev.map((s, idx) => idx === i ? { ...s, _selected: s._selected === false ? true : false } : s))
 
   return (
@@ -80,17 +123,32 @@ export default function IntelligenceTab({ account }) {
       <div className="ai-panel">
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>⚡ Intelligence sweep</div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
-          {QUICK.map((q, i) => <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} disabled={sweepLoading} onClick={() => { setSweepInput(q); runSweep(q) }}>{q}</button>)}
+          {QUICK.map((q, i) => (
+            <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} disabled={sweepLoading}
+              onClick={() => { setSweepInput(q); runSweep(q) }}>{q}
+            </button>
+          ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input className="form-input" style={{ flex: 1 }} value={sweepInput} onChange={e => setSweepInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && runSweep()} placeholder="Search for news, signals, competitor moves..." />
-          <button className="btn btn-ai" onClick={runSweep} disabled={sweepLoading}>
+          <input className="form-input" style={{ flex: 1 }} value={sweepInput}
+            onChange={e => setSweepInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && runSweep()}
+            placeholder="Search for news, signals, competitor moves..." />
+          <button className="btn btn-ai" onClick={() => runSweep()} disabled={sweepLoading}>
             {sweepLoading ? <><Spinner /> Searching…</> : '⚡ Sweep'}
           </button>
         </div>
+        {cacheHit && (
+          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>
+            ⚡ Cached result ·{' '}
+            <button style={{ background: 'none', border: 'none', color: '#0F6E56', cursor: 'pointer', fontSize: 11, padding: 0 }}
+              onClick={() => { setCacheHit(false); runSweep(sweepInput) }}>refresh
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Parsed signals */}
+      {/* Parsed signals preview */}
       {parsedSignals.length > 0 && (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -122,9 +180,7 @@ export default function IntelligenceTab({ account }) {
       )}
 
       {sweepOutput && (
-        <div className="card">
-          <div className="ai-output">{sweepOutput}</div>
-        </div>
+        <div className="card"><div className="ai-output">{sweepOutput}</div></div>
       )}
 
       {/* Saved signals */}
@@ -153,7 +209,7 @@ export default function IntelligenceTab({ account }) {
         </div>
       )}
 
-      {/* Market Intel for this account's industry */}
+      {/* Market Intel */}
       {account.industry && (
         <div className="card">
           <div className="card-title" style={{ marginBottom: 12 }}>📊 Market intel — {account.industry}</div>

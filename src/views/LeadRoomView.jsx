@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
-import { callAI, serperSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON } from '../lib/ai'
+import { callAI, serperSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
 import { initials, cleanDomain, loadProfile } from '../lib/helpers'
 import { loadICP, scoreProspectICP, linkedInSearchStrings, buildICPContext } from '../lib/icp'
@@ -151,7 +151,11 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
     }
 
     try {
-      const [r1, r2] = await Promise.allSettled([serperSearch(cat + ' companies ' + loc), serperSearch(cat + ' manufacturers suppliers ' + loc)])
+      // #1 #6 Enhance queries with profile/ICP + year + location
+      const profile = loadProfile(user?.id)
+      const q1 = buildSearchQuery(cat + ' companies ' + loc, profile, icp)
+      const q2 = buildSearchQuery(cat + ' manufacturers suppliers ' + loc, profile, icp)
+      const [r1, r2] = await Promise.allSettled([serperSearch(q1), serperSearch(q2)])
       const organic1 = r1.status === 'fulfilled' ? (r1.value.organic || []) : []
       const organic2 = r2.status === 'fulfilled' ? (r2.value.organic || []) : []
       const kg = r1.status === 'fulfilled' ? r1.value.knowledgeGraph : null
@@ -315,28 +319,39 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       setLoading(false); return
     }
 
+    // #8 Check company research cache before hitting APIs
+    const cacheKey = name.toLowerCase().trim().replace(/\s+/g, '_') + (place ? '_' + place.toLowerCase() : '')
+    const cachedProfile = getResearchCache(cacheKey)
+    if (cachedProfile) {
+      setProfile(cachedProfile)
+      lsSet(LS_RESEARCH, cachedProfile)
+      setStatus('Found: ' + cachedProfile.name + ' (cached — refresh to update)')
+      addToHistory(cachedProfile.name)
+      setHistory(lsGet(LS_RESEARCH_HISTORY) || [])
+      setLoading(false); return
+    }
+
     try {
-      const searchQuery = name + ' ' + place + ' company Australia 2026'
+      // #1 #6 Build enhanced search query with year + location
+      const userProfile = loadProfile(user?.id)
+      const searchQuery = buildSearchQuery(name + ' ' + place + ' company', userProfile, null)
       const liQuery = '"' + name + '" site:linkedin.com/in'
 
-      // Run web research + LinkedIn people search in parallel (LinkedIn kept separate from AI context)
+      // #2 #7 Run searches in parallel
       const [serper, tavily, liSerper] = await Promise.allSettled([
         serperSearch(searchQuery),
-        tavilySearch(searchQuery, 5),
-        serperSearch(liQuery)
+        tavilySearch(searchQuery, 4),
+        serperSearch(liQuery, false) // no date restrict for LinkedIn
       ])
 
-      // Build AI context from web data only (keeping it clean and focused)
-      let context = ''
-      if (serper.status === 'fulfilled') {
-        const organic = serper.value.organic || [], news = serper.value.news || [], kg = serper.value.knowledgeGraph
-        if (kg) context += 'KNOWLEDGE GRAPH: ' + kg.title + ' — ' + (kg.description || '') + '\n\n'
-        if (organic.length) context += 'WEB:\n' + organic.slice(0, 5).map(r => r.title + ': ' + (r.snippet || '').slice(0, 300) + '\nURL: ' + r.link).join('\n\n') + '\n\n'
-        if (news.length) context += 'NEWS:\n' + news.slice(0, 4).map(n => n.title + ' (' + (n.date || 'recent') + '): ' + n.snippet + '\nURL: ' + n.link).join('\n\n')
-      }
-      if (tavily.status === 'fulfilled') context += '\n\nADDITIONAL:\n' + (tavily.value.results || []).slice(0, 3).map(r => r.title + ': ' + (r.content || '').slice(0, 300)).join('\n\n')
+      // #2 #7 Build clean deduplicated context
+      const context = buildAIContext(
+        serper.status === 'fulfilled' ? serper.value : null,
+        tavily.status === 'fulfilled' ? tavily.value : null,
+        { maxSnippet: 200, maxNews: 4, maxOrganic: 4, maxTavily: 3 }
+      )
 
-      // Parse LinkedIn results independently for fallback
+      // Parse LinkedIn results independently for stakeholder fallback
       let liStakeholders = []
       if (liSerper.status === 'fulfilled') {
         liStakeholders = (liSerper.value.organic || [])
@@ -354,9 +369,16 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
           .filter(Boolean)
       }
 
-      const prompt = 'You are a B2B sales intelligence researcher. Based on the search data, build a comprehensive company profile for "' + name + '". Return ONLY a valid JSON object (no markdown, no extra text): {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"talking_points":[string,string,string],"stakeholders":[{"name":string,"position":string,"role_type":"Champion"|"Economic Buyer"|"Influencer"|"Blocker"|"Technical Buyer","why_relevant":string,"linkedin_url":string}]}. Generate 3-5 signals, 3 talking points, and up to 3 stakeholders ONLY if their full names appear explicitly in the web data provided. If no named individuals appear, return stakeholders as an empty array [].'
+      // #4 Structured prompt with explicit schema + example
+      const prompt = `B2B sales intelligence researcher. Build a company profile for "${name}". Return ONLY valid JSON — no markdown, no extra text.
 
-      const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1400, false)
+Schema: {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"talking_points":[string,string,string],"stakeholders":[{"name":string,"position":string,"role_type":"Champion"|"Economic Buyer"|"Influencer"|"Blocker"|"Technical Buyer","why_relevant":string,"linkedin_url":string}]}
+
+Example signals: [{"priority":"watch","title":"Expanding into QLD market","body":"Recent job postings indicate a QLD sales hire. Signals distribution expansion plans.","action":"Contact procurement before expansion freezes budgets","source_url":"https://seek.com.au/..."}]
+
+Rules: 3-5 signals. 3 talking points. Up to 3 stakeholders ONLY if full names appear in search data — otherwise return [].`
+
+      const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1200, false)
       const parsed = extractJSON(result)
       if (parsed && parsed.name) {
         // Merge: use AI stakeholders if found, otherwise use LinkedIn fallback
@@ -384,6 +406,7 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
             }
           } catch (e) {} // email enrichment is best-effort
         }
+        setResearchCache(cacheKey, parsed) // #8 cache for 24h
         setProfile(parsed)
         lsSet(LS_RESEARCH, parsed)
         setStatus('Found: ' + parsed.name)

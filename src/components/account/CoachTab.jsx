@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../../lib/context'
 import { uid } from '../../lib/supabase'
-import { callAI } from '../../lib/ai'
+import { callAIStream } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_COACH, delay } from '../../lib/demo'
 import { loadProfile, buildRepContext } from '../../lib/helpers'
 import { loadICP, buildICPContext } from '../../lib/icp'
@@ -63,18 +63,22 @@ export default function CoachTab({ account }) {
     try {
       const { repName, repCtx } = buildRepContext(loadProfile(user?.id))
       const icpCtx = buildICPContext(loadICP(user?.id))
-      let systemPrompt = 'You are an elite B2B sales coach. Give specific, actionable, deal-specific coaching. Use all account context provided. Be direct, practical and concise.'
-      if (repCtx) systemPrompt += '\n\nREP PROFILE: ' + repCtx
-      if (icpCtx) systemPrompt += '\n\nICP & MESSAGING FRAMEWORK:\n' + icpCtx
-      if (repName) systemPrompt += '\n\nWhen writing emails or call scripts, always sign off as ' + repName + '.'
-      const result = await callAI(
+      // #10 Compressed system prompt — same meaning, ~25% fewer tokens
+      let systemPrompt = 'Elite B2B sales coach. Be specific, direct, actionable. Use all account context.'
+      if (repCtx) systemPrompt += '\nREP: ' + repCtx
+      if (icpCtx) systemPrompt += '\nICP: ' + icpCtx
+      if (repName) systemPrompt += '\nSign emails/scripts as ' + repName + '.'
+
+      // #11 Stream the response — user sees output immediately
+      let streamed = ''
+      const result = await callAIStream(
         systemPrompt,
-        [{ role: 'user', content: 'ACCOUNT CONTEXT:\n' + buildContext() + '\n\nCOACHING REQUEST: ' + q }],
-        900
+        [{ role: 'user', content: 'ACCOUNT:\n' + buildContext() + '\n\nREQUEST: ' + q }],
+        900,
+        (_chunk, full) => { streamed = full; setOutput(full) }
       )
-      const newSession = { id: uid(), date: new Date().toISOString().split('T')[0], prompt: q, response: result }
+      const newSession = { id: uid(), date: new Date().toISOString().split('T')[0], prompt: q, response: result || streamed }
       await saveAccount({ ...account, coach_sessions: [...sessions, newSession] })
-      setOutput(result)
       setPrompt('')
       showToast('Coach response saved', 'success')
     } catch (e) { showToast(e.message, 'error') }
