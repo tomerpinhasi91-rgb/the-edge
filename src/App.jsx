@@ -4,6 +4,7 @@ import Sidebar from './components/layout/Sidebar'
 import MobileNav from './components/layout/MobileNav'
 import Toast from './components/ui/Toast'
 import ErrorBoundary from './components/ui/ErrorBoundary'
+import ChatBot from './components/ui/ChatBot'
 import AuthScreen from './views/AuthScreen'
 import ProfileView from './views/ProfileView'
 import AdminView from './views/AdminView'
@@ -121,6 +122,7 @@ export default function App() {
         </ErrorBoundary>
       </div>
       <MobileNav view={view} setView={setView} setActiveId={setActiveId} accounts={accounts} user={user} isAdmin={accounts.__isAdmin} />
+      <ChatBot />
       <Toast />
     </div>
   )

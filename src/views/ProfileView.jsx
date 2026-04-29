@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { sb, uid } from '../lib/supabase'
-import { getTokenStats } from '../lib/ai'
 import { initials, loadProfile } from '../lib/helpers'
 import { loadICP, saveICP, EMPTY_ICP, EMPTY_PERSONA, ICP_SIZES } from '../lib/icp'
 import { callAI, extractJSON } from '../lib/ai'
@@ -106,8 +105,6 @@ export default function ProfileView() {
   const [pwSaving, setPwSaving] = useState(false)
   const [connTesting, setConnTesting] = useState(false)
   const [connResult, setConnResult] = useState(null)
-  const [tokens, setTokens] = useState(getTokenStats())
-
   useEffect(() => {
     if (!user) return
     const saved = loadProfile(user.id)
@@ -115,11 +112,6 @@ export default function ProfileView() {
     const savedICP = loadICP(user.id)
     if (savedICP) setICP(savedICP)
   }, [user])
-
-  useEffect(() => {
-    const interval = setInterval(() => setTokens(getTokenStats()), 5000)
-    return () => clearInterval(interval)
-  }, [])
 
   const set = (k, v) => setProfile(prev => ({ ...prev, [k]: v }))
 
@@ -215,7 +207,6 @@ export default function ProfileView() {
 
   const displayName = [profile.firstName, profile.lastName].filter(Boolean).join(' ')
   const avatarInitials = displayName ? initials(displayName) : (user?.email?.[0] || '?').toUpperCase()
-  const cost = tokens ? ((tokens.input * 3 + tokens.output * 15) / 1000000).toFixed(4) : '0.0000'
 
   const PROFILE_TABS = [
     { key: 'profile', label: 'Profile' },
@@ -447,23 +438,6 @@ export default function ProfileView() {
               </div>
             </div>
 
-            <div style={{ background: 'var(--color-primary-light)', border: '0.5px solid var(--color-primary-border)', borderRadius: 12, padding: '16px 20px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>My AI usage today</div>
-              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                {[
-                  ['AI calls', tokens?.calls ?? 0],
-                  ['Input tokens', (tokens?.input ?? 0).toLocaleString()],
-                  ['Output tokens', (tokens?.output ?? 0).toLocaleString()],
-                  ['Est. cost', '$' + cost],
-                ].map(([label, val]) => (
-                  <div key={label}>
-                    <div style={{ fontSize: 10, color: 'var(--color-primary-dark)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-primary)', marginTop: 2 }}>{val}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--color-primary)', marginTop: 10, opacity: 0.7 }}>Resets daily at midnight</div>
-            </div>
           </>
         )}
 
