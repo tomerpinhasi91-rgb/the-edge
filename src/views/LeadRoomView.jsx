@@ -153,11 +153,11 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
 
     try {
       const profile = loadProfile(user?.id)
-      // Three searches for volume: specific, broader, and a named-company angle
-      const q1 = buildSearchQuery(cat + ' company ' + loc, profile, icp, true)
-      const q2 = buildSearchQuery(cat + ' manufacturer supplier ' + loc, profile, icp, true)
-      const q3 = buildSearchQuery('list of ' + cat + ' businesses ' + loc, profile, icp, true)
-      setStatus('Finding companies…')
+      // Three parallel searches for volume
+      const q1 = buildSearchQuery(cat + ' companies ' + loc, profile, icp, true)
+      const q2 = buildSearchQuery(cat + ' manufacturers suppliers ' + loc, profile, icp, true)
+      const q3 = buildSearchQuery(cat + ' businesses ' + loc + ' australia', profile, icp, true)
+      setStatus('Searching…')
       const [r1, r2, r3] = await Promise.allSettled([
         serperSearch(q1, false),
         serperSearch(q2, false),
@@ -168,58 +168,28 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
       const organic3 = r3.status === 'fulfilled' ? (r3.value.organic || []) : []
       const kg = r1.status === 'fulfilled' ? r1.value.knowledgeGraph : null
 
-      // Build raw text for AI to parse — titles + snippets + urls
-      const SKIP_DOMAINS = ['linkedin.com', 'yellowpages.com.au', 'truelocal.com.au', 'yelp.com', 'facebook.com', 'wikipedia.org', 'seek.com.au', 'instagram.com', 'twitter.com', 'youtube.com', 'glassdoor.com', 'indeed.com']
-      const rawLines = []
-      if (kg?.title) rawLines.push(`NAME: ${kg.title} | DESC: ${kg.description || ''} | URL: ${kg.website || ''}`)
-      const seenDomains = new Set()
+      // Skip these domains — not company homepages
+      const SKIP_DOMAINS = ['linkedin.com', 'yellowpages.com.au', 'truelocal.com.au', 'yelp.com', 'facebook.com', 'wikipedia.org', 'seek.com.au', 'instagram.com', 'twitter.com', 'youtube.com', 'glassdoor.com', 'indeed.com', 'ibisworld.com', 'statista.com', 'abs.gov.au', 'business.gov.au', 'foodstandards.gov.au', 'reddit.com', 'quora.com']
+      // Skip these title patterns — clearly not a company
+      const SKIP_TITLE = ['award', 'exhibition', 'expo ', ' expo', 'conference', 'top 10', 'top 100', 'top 50', 'exhibitor', 'best food', 'industry report', 'market report', 'statistics', 'how to', 'what is', 'guide to', 'list of', 'largest food', 'biggest food', 'week 2025', 'week 2026', 'show 2025', 'show 2026']
+
+      const seen = new Set(); const found = []
+      if (kg?.title && kg?.website) {
+        seen.add(kg.title.toLowerCase())
+        found.push({ name: kg.title, description: kg.description || '', website: kg.website, type: kg.type || '' })
+      }
       ;[...organic1, ...organic2, ...organic3].forEach(r => {
         try {
           const domain = r.link ? new URL(r.link).hostname.replace('www.', '') : ''
-          if (!domain || seenDomains.has(domain) || SKIP_DOMAINS.some(s => domain.includes(s))) return
-          seenDomains.add(domain)
-          rawLines.push(`TITLE: ${r.title} | SNIPPET: ${(r.snippet || '').slice(0, 200)} | URL: https://${domain}`)
+          if (!domain || seen.has(domain) || SKIP_DOMAINS.some(s => domain.includes(s))) return
+          const titleLow = (r.title || '').toLowerCase()
+          if (SKIP_TITLE.some(w => titleLow.includes(w))) return
+          seen.add(domain)
+          const name = r.title.replace(/ [-|–] .*$/, '').replace(/ [|] .*$/, '').trim()
+          if (name.length < 2 || name.length > 70) return
+          found.push({ name, description: r.snippet || '', website: 'https://' + domain, type: '' })
         } catch (e) {}
       })
-
-      if (!rawLines.length) {
-        setStatus('No companies found — try different keywords')
-        setLoading(false); return
-      }
-
-      // AI extraction — Haiku model, fast + cheap, filters noise into real companies
-      setStatus('Identifying companies…')
-      const aiRaw = await callAI(
-        `You are a B2B sales intelligence tool. Extract real operating companies from Google search results.
-
-RULES — INCLUDE only if:
-- It is an actual operating company (not a directory, article, award, trade show, association, or government page)
-- The company genuinely makes, supplies or provides what was searched for
-- It has a real company website
-
-RULES — EXCLUDE:
-- Award ceremonies, industry events, trade shows, exhibitor lists
-- News articles, blog posts, industry reports, "Top 10" lists
-- Industry associations, chambers of commerce, government agencies
-- Directories (yellowpages, yelp, truelocal etc)
-- Recruitment or job listing pages
-- Equipment suppliers or service companies (only include companies that ARE the end customer, not vendors selling TO them)
-
-Return ONLY a JSON array, no explanation, no markdown fences:
-[{"name":"Exact Company Name","description":"One precise sentence: what they specifically make or supply","website":"https://their-domain.com","type":"Industry category e.g. Ready Meals Manufacturing"}]
-
-Return 8 to 12 real companies. If fewer exist in the results, return what you have.`,
-        [{ role: 'user', content: `Search was for: "${cat}" in ${loc}\n\nSearch results to parse:\n${rawLines.join('\n')}` }],
-        900,
-        false,
-        'claude-haiku-4-5'
-      )
-
-      let found = []
-      try {
-        const jsonMatch = aiRaw.match(/\[[\s\S]*\]/)
-        if (jsonMatch) found = JSON.parse(jsonMatch[0]).filter(c => c.name && c.website)
-      } catch (e) {}
 
       const scored = applyICP(found)
       setProspects(scored)
