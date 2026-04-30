@@ -134,7 +134,7 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
       .sort((a, b) => (b.icpFit?.score || 0) - (a.icpFit?.score || 0))
   }
 
-  const CHIPS = ['food manufacturers SA', 'cold chain logistics Adelaide', 'organic produce suppliers', 'packaging companies Melbourne', 'meat processors Queensland']
+  const CHIPS = ['ready meals manufacturers Victoria', 'meat processors NSW', 'poultry processors Australia', 'frozen food manufacturers Melbourne', 'food manufacturers Queensland']
 
   const run = async () => {
     const cat = category.trim()
@@ -152,36 +152,74 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
     }
 
     try {
-      // #1 #6 Enhance prospect queries — pass isProspect=true to allow ICP injection
       const profile = loadProfile(user?.id)
-      const q1 = buildSearchQuery(cat + ' companies ' + loc, profile, icp, true)
-      const q2 = buildSearchQuery(cat + ' manufacturers suppliers ' + loc, profile, icp, true)
-      const [r1, r2] = await Promise.allSettled([serperSearch(q1), serperSearch(q2)])
+      // Two targeted searches — specific company names + broader supplier sweep
+      const q1 = buildSearchQuery(cat + ' company ' + loc + ' site:com.au OR site:com.au', profile, icp, true)
+      const q2 = buildSearchQuery(cat + ' manufacturer supplier ' + loc, profile, icp, true)
+      setStatus('Finding companies…')
+      const [r1, r2] = await Promise.allSettled([serperSearch(q1, false), serperSearch(q2, false)])
       const organic1 = r1.status === 'fulfilled' ? (r1.value.organic || []) : []
       const organic2 = r2.status === 'fulfilled' ? (r2.value.organic || []) : []
       const kg = r1.status === 'fulfilled' ? r1.value.knowledgeGraph : null
-      const seen = new Set(); const found = []
-      if (kg && kg.title && !seen.has(kg.title.toLowerCase())) {
-        seen.add(kg.title.toLowerCase())
-        found.push({ name: kg.title, description: kg.description || '', website: kg.website || '', type: kg.type || '' })
-      }
-      const SKIP = ['linkedin.com', 'yellowpages.com.au', 'truelocal.com.au', 'yelp.com', 'facebook.com', 'wikipedia.org', 'seek.com.au']
+
+      // Build raw text for AI to parse — titles + snippets + urls
+      const SKIP_DOMAINS = ['linkedin.com', 'yellowpages.com.au', 'truelocal.com.au', 'yelp.com', 'facebook.com', 'wikipedia.org', 'seek.com.au', 'instagram.com', 'twitter.com', 'youtube.com', 'glassdoor.com', 'indeed.com']
+      const rawLines = []
+      if (kg?.title) rawLines.push(`NAME: ${kg.title} | DESC: ${kg.description || ''} | URL: ${kg.website || ''}`)
+      const seenDomains = new Set()
       ;[...organic1, ...organic2].forEach(r => {
         try {
           const domain = r.link ? new URL(r.link).hostname.replace('www.', '') : ''
-          if (!domain || seen.has(domain) || SKIP.some(s => domain.includes(s))) return
-          seen.add(domain)
-          const name = r.title.replace(/ - .*$/, '').replace(/ \| .*$/, '').replace(/ – .*$/, '').trim()
-          if (name.length < 2 || name.length > 60) return
-          found.push({ name, description: r.snippet || '', website: 'https://' + domain })
+          if (!domain || seenDomains.has(domain) || SKIP_DOMAINS.some(s => domain.includes(s))) return
+          seenDomains.add(domain)
+          rawLines.push(`TITLE: ${r.title} | SNIPPET: ${(r.snippet || '').slice(0, 200)} | URL: https://${domain}`)
         } catch (e) {}
       })
-      const scored = applyICP(found.slice(0, 12))
+
+      if (!rawLines.length) {
+        setStatus('No companies found — try different keywords')
+        setLoading(false); return
+      }
+
+      // AI extraction — Haiku model, fast + cheap, filters noise into real companies
+      setStatus('Identifying companies…')
+      const aiRaw = await callAI(
+        `You are a B2B sales intelligence tool. Extract real operating companies from Google search results.
+
+RULES — INCLUDE only if:
+- It is an actual operating company (not a directory, article, award, trade show, association, or government page)
+- The company genuinely makes, supplies or provides what was searched for
+- It has a real company website
+
+RULES — EXCLUDE:
+- Award ceremonies, industry events, trade shows, exhibitor lists
+- News articles, blog posts, industry reports, "Top 10" lists
+- Industry associations, chambers of commerce, government agencies
+- Directories (yellowpages, yelp, truelocal etc)
+- Recruitment or job listing pages
+
+Return ONLY a JSON array, no explanation, no markdown fences:
+[{"name":"Exact Company Name","description":"One precise sentence: what they specifically make or supply","website":"https://their-domain.com","type":"Industry category e.g. Ready Meals Manufacturing"}]
+
+Return between 4 and 8 companies maximum. If fewer than 4 real companies are found, return what you have.`,
+        [{ role: 'user', content: `Search was for: "${cat}" in ${loc}\n\nSearch results to parse:\n${rawLines.join('\n')}` }],
+        600,
+        false,
+        'claude-haiku-4-5'
+      )
+
+      let found = []
+      try {
+        const jsonMatch = aiRaw.match(/\[[\s\S]*\]/)
+        if (jsonMatch) found = JSON.parse(jsonMatch[0]).filter(c => c.name && c.website)
+      } catch (e) {}
+
+      const scored = applyICP(found)
       setProspects(scored)
       lsSet(LS_PROSPECTS, { results: scored })
       ev.prospectSearch(cat + ' ' + loc, scored.length)
       setStatus(found.length > 0
-        ? 'Found ' + Math.min(found.length, 12) + ' companies matching "' + cat + '" in ' + loc + (hasICP ? ' — sorted by ICP fit' : '')
+        ? 'Found ' + found.length + ' companies matching "' + cat + '" in ' + loc + (hasICP ? ' — sorted by ICP fit' : '')
         : 'No companies found — try different keywords')
     } catch (e) { setStatus('Search failed: ' + e.message); showToast(e.message, 'error') }
     setLoading(false)
