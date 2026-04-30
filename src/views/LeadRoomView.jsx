@@ -205,18 +205,21 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
 
     try {
       const profile = loadProfile(user?.id)
-      // Four parallel searches: 2 web + 1 maps (real businesses) + 1 broader sweep
+      // Four parallel searches: 3 web + 1 maps — maximise raw results
       const q1 = buildSearchQuery(cat + ' companies ' + loc, profile, icp, true)
       const q2 = buildSearchQuery(cat + ' manufacturers suppliers ' + loc, profile, icp, true)
+      const q3 = buildSearchQuery(cat + ' businesses ' + loc, profile, icp, true)
       const qMaps = cat + ' ' + loc  // maps query — clean, no augmentation needed
       setStatus('Searching…')
-      const [r1, r2, rMaps] = await Promise.allSettled([
+      const [r1, r2, r3, rMaps] = await Promise.allSettled([
         serperSearch(q1, false),
         serperSearch(q2, false),
+        serperSearch(q3, false),
         serperMapsSearch(qMaps)
       ])
       const organic1 = r1.status === 'fulfilled' ? (r1.value.organic || []) : []
       const organic2 = r2.status === 'fulfilled' ? (r2.value.organic || []) : []
+      const organic3 = r3.status === 'fulfilled' ? (r3.value.organic || []) : []
       const places   = rMaps.status === 'fulfilled' ? (rMaps.value.places || []) : []
       const kg = r1.status === 'fulfilled' ? r1.value.knowledgeGraph : null
 
@@ -252,7 +255,7 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
       }
 
       // 3. Web organic — filtered for quality
-      ;[...organic1, ...organic2].forEach(r => {
+      ;[...organic1, ...organic2, ...organic3].forEach(r => {
         try {
           const domain = r.link ? new URL(r.link).hostname.replace('www.', '') : ''
           if (!domain || seen.has(domain) || SKIP_DOMAINS.some(s => domain.includes(s))) return
@@ -329,6 +332,10 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
                     {badge.label}
                   </span>
                 )}
+                <button title="More like this" onClick={() => handleLike(p)}
+                  style={{ background: '#F0FDF4', border: '0.5px solid #86EFAC', borderRadius: 6, padding: '1px 7px', fontSize: 11, cursor: 'pointer', color: '#16a34a', lineHeight: 1.4 }}>👍</button>
+                <button title="Not relevant — hide" onClick={() => handleBlock(p)}
+                  style={{ background: '#FEF2F2', border: '0.5px solid #FECACA', borderRadius: 6, padding: '1px 7px', fontSize: 11, cursor: 'pointer', color: '#dc2626', lineHeight: 1.4 }}>✕</button>
               </div>
               {p.type && <div style={{ fontSize: 11, color: '#0078D4', marginBottom: 2 }}>{p.type}</div>}
               {p.description && <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5 }}>{p.description.slice(0, 160)}{p.description.length > 160 ? '…' : ''}</div>}
@@ -340,12 +347,6 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
             <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' }}>
               <button className="btn btn-primary btn-sm" onClick={() => { handleLike(p); goToResearch(p.name) }} style={{ fontSize: 11 }}>🔍 Research</button>
               {domain && <button className="btn btn-secondary btn-sm" onClick={() => goToEmail(domain)} style={{ fontSize: 11 }}>✉ Emails</button>}
-              <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-                <button title="More like this" onClick={() => handleLike(p)}
-                  style={{ background: '#F0FDF4', border: '0.5px solid #86EFAC', borderRadius: 6, padding: '2px 8px', fontSize: 12, cursor: 'pointer', color: '#16a34a' }}>👍</button>
-                <button title="Not relevant — hide this" onClick={() => handleBlock(p)}
-                  style={{ background: '#FEF2F2', border: '0.5px solid #FECACA', borderRadius: 6, padding: '2px 8px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }}>✕</button>
-              </div>
             </div>
           </div>
         )
