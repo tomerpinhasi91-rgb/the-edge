@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
-import { callAI, serperSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../lib/ai'
+import { callAI, serperSearch, serperMapsSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../lib/ai'
 import { ev } from '../lib/analytics'
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
 import { initials, cleanDomain, loadProfile, exportAccountsCSV } from '../lib/helpers'
@@ -153,19 +153,19 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
 
     try {
       const profile = loadProfile(user?.id)
-      // Three parallel searches for volume
+      // Four parallel searches: 2 web + 1 maps (real businesses) + 1 broader sweep
       const q1 = buildSearchQuery(cat + ' companies ' + loc, profile, icp, true)
       const q2 = buildSearchQuery(cat + ' manufacturers suppliers ' + loc, profile, icp, true)
-      const q3 = buildSearchQuery(cat + ' businesses ' + loc + ' australia', profile, icp, true)
+      const qMaps = cat + ' ' + loc  // maps query — clean, no augmentation needed
       setStatus('Searching…')
-      const [r1, r2, r3] = await Promise.allSettled([
+      const [r1, r2, rMaps] = await Promise.allSettled([
         serperSearch(q1, false),
         serperSearch(q2, false),
-        serperSearch(q3, false)
+        serperMapsSearch(qMaps)
       ])
       const organic1 = r1.status === 'fulfilled' ? (r1.value.organic || []) : []
       const organic2 = r2.status === 'fulfilled' ? (r2.value.organic || []) : []
-      const organic3 = r3.status === 'fulfilled' ? (r3.value.organic || []) : []
+      const places   = rMaps.status === 'fulfilled' ? (rMaps.value.places || []) : []
       const kg = r1.status === 'fulfilled' ? r1.value.knowledgeGraph : null
 
       // Skip these domains — not company homepages
@@ -174,11 +174,33 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
       const SKIP_TITLE = ['award', 'exhibition', 'expo ', ' expo', 'conference', 'top 10', 'top 100', 'top 50', 'exhibitor', 'best food', 'industry report', 'market report', 'statistics', 'how to', 'what is', 'guide to', 'list of', 'largest food', 'biggest food', 'week 2025', 'week 2026', 'show 2025', 'show 2026']
 
       const seen = new Set(); const found = []
-      if (kg?.title && kg?.website) {
+
+      // 1. Google Maps results first — highest quality, always real businesses
+      places.forEach(p => {
+        if (!p.title || seen.has(p.title.toLowerCase())) return
+        seen.add(p.title.toLowerCase())
+        const website = p.website || ''
+        if (website) {
+          try { seen.add(new URL(website).hostname.replace('www.', '')) } catch (e) {}
+        }
+        const ratingStr = p.rating ? ` · ${p.rating}★ (${p.reviewCount || 0} reviews)` : ''
+        found.push({
+          name: p.title,
+          description: [p.category, p.address].filter(Boolean).join(' · ') + ratingStr,
+          website: website || '',
+          type: p.category || '',
+          fromMaps: true
+        })
+      })
+
+      // 2. Knowledge Graph — high confidence single match
+      if (kg?.title && kg?.website && !seen.has(kg.title.toLowerCase())) {
         seen.add(kg.title.toLowerCase())
         found.push({ name: kg.title, description: kg.description || '', website: kg.website, type: kg.type || '' })
       }
-      ;[...organic1, ...organic2, ...organic3].forEach(r => {
+
+      // 3. Web organic — filtered for quality
+      ;[...organic1, ...organic2].forEach(r => {
         try {
           const domain = r.link ? new URL(r.link).hostname.replace('www.', '') : ''
           if (!domain || seen.has(domain) || SKIP_DOMAINS.some(s => domain.includes(s))) return
@@ -234,6 +256,7 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
                 <span style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span>
+                {p.fromMaps && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 20, background: '#F0FDF4', color: '#16a34a', fontWeight: 500 }}>📍 Maps</span>}
                 {badge && (
                   <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 20, background: badge.bg, color: badge.color }}>
                     {badge.label}

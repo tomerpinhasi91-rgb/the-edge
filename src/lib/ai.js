@@ -232,6 +232,17 @@ export const serperSearch = async (query, dateRestrict = true) => {
   return res.json()
 }
 
+// ── Serper Maps search — returns real businesses from Google Maps ──
+export const serperMapsSearch = async (query) => {
+  const res = await fetch('/api/serper', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, type: 'maps', num: 10 })
+  })
+  if (!res.ok) throw new Error('Serper maps search failed')
+  return res.json()
+}
+
 // ── Tavily search ────────────────────────────────────────────────
 export const tavilySearch = async (query, maxResults = 4) => {
   const res = await fetch('/api/tavily', {

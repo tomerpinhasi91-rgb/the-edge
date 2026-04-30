@@ -37,10 +37,24 @@ module.exports = async function handler(req, res) {
   const API_KEY = process.env.SERPER_API_KEY;
   if (!API_KEY) return res.status(500).json({ error: 'SERPER_API_KEY not configured' });
 
-  const { query, num, gl, hl, dateRestrict } = req.body || {};
+  const { query, num, gl, hl, dateRestrict, type } = req.body || {};
   if (!query) return res.status(400).json({ error: 'query required' });
 
   const headers = { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY };
+
+  // Maps search — returns real businesses with addresses, ratings, websites
+  if (type === 'maps') {
+    try {
+      const mapsRes = await httpsPost('https://google.serper.dev/maps', headers, {
+        q: query, gl: gl || 'au', hl: hl || 'en', num: num || 10
+      });
+      if (!mapsRes.ok) return res.status(mapsRes.status).json({ error: mapsRes.data?.message || 'Serper maps error' });
+      return res.status(200).json({ places: mapsRes.data.places || [] });
+    } catch(err) {
+      console.error('Serper maps error:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
 
   // Web search: no date restriction — company profiles, products, history are all relevant
   // News only: restrict to past 6 months so signals stay fresh
