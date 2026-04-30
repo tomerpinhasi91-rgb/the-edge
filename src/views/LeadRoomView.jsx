@@ -115,6 +115,14 @@ const ICP_BADGE = {
   low:      { bg: '#F3F4F6', color: '#9ca3af', label: 'Low fit' },
 }
 
+// ── Prospect feedback helpers (localStorage, zero tokens) ─────────
+const PREFS_KEY = (uid) => `te_prospect_prefs_${uid}`
+const loadPrefs = (uid) => {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY(uid))) || { liked: [], blocked: [] } }
+  catch { return { liked: [], blocked: [] } }
+}
+const savePrefs = (uid, p) => { try { localStorage.setItem(PREFS_KEY(uid), JSON.stringify(p)) } catch {} }
+
 // ── Prospect Finder ──────────────────────────────────────────────
 function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
   const [category, setCategory] = useState('')
@@ -122,19 +130,63 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
   const [loading, setLoading] = useState(false)
   const [prospects, setProspects] = useState(() => lsGet(LS_PROSPECTS)?.results || [])
   const [status, setStatus] = useState(() => lsGet(LS_PROSPECTS) ? 'Showing last search — search again to refresh' : '')
+  const [prefs, setPrefs] = useState(() => loadPrefs(user?.id))
 
   const icp = loadICP(user?.id)
   const hasICP = icp && icp.personas && icp.personas.some(p => p.industries || p.name)
 
-  // Score + sort prospects against ICP
+  // Score + sort: ICP first, then boost liked categories to top
   const applyICP = (list) => {
-    if (!hasICP) return list
-    return list
-      .map(p => ({ ...p, icpFit: scoreProspectICP(p, icp) }))
-      .sort((a, b) => (b.icpFit?.score || 0) - (a.icpFit?.score || 0))
+    let result = hasICP
+      ? list.map(p => ({ ...p, icpFit: scoreProspectICP(p, icp) }))
+            .sort((a, b) => (b.icpFit?.score || 0) - (a.icpFit?.score || 0))
+      : list
+    // Boost liked categories — sort them above non-liked with same ICP score
+    const likedCats = (prefs.liked || []).map(l => l.category.toLowerCase())
+    if (likedCats.length) {
+      result = result.sort((a, b) => {
+        const aScore = (a.icpFit?.score || 0)
+        const bScore = (b.icpFit?.score || 0)
+        const aLiked = likedCats.some(c => (a.type || '').toLowerCase().includes(c.split(' ')[0]))
+        const bLiked = likedCats.some(c => (b.type || '').toLowerCase().includes(c.split(' ')[0]))
+        if (aLiked && !bLiked && Math.abs(aScore - bScore) < 20) return -1
+        if (bLiked && !aLiked && Math.abs(aScore - bScore) < 20) return 1
+        return bScore - aScore
+      })
+    }
+    return result
   }
 
-  const CHIPS = ['ready meals manufacturers Victoria', 'meat processors NSW', 'poultry processors Australia', 'frozen food manufacturers Melbourne', 'food manufacturers Queensland']
+  const handleLike = (p) => {
+    const cat = p.type || p.category || ''
+    if (!cat) return
+    const updated = { ...prefs }
+    const existing = (updated.liked || []).find(l => l.category === cat)
+    if (existing) existing.count = (existing.count || 1) + 1
+    else updated.liked = [...(updated.liked || []), { category: cat, count: 1 }]
+    savePrefs(user?.id, updated)
+    setPrefs(updated)
+    // Re-sort current results with new preference
+    setProspects(prev => applyICP([...prev]))
+    showToast('Got it — more like this will rank higher', 'success')
+  }
+
+  const handleBlock = (p) => {
+    const updated = { ...prefs }
+    updated.blocked = [...new Set([...(updated.blocked || []), p.name])]
+    savePrefs(user?.id, updated)
+    setPrefs(updated)
+    setProspects(prev => prev.filter(x => x.name !== p.name))
+  }
+
+  // Top 2 liked categories become dynamic search chips
+  const topLiked = [...(prefs.liked || [])].sort((a, b) => (b.count || 0) - (a.count || 0)).slice(0, 2)
+  const dynamicChips = topLiked.map(l => l.category.toLowerCase() + (location && location !== 'Australia' ? ' ' + location : ''))
+  const staticChips = ['ready meals manufacturers Victoria', 'meat processors NSW', 'poultry processors Australia', 'frozen food manufacturers Melbourne', 'food manufacturers Queensland']
+  const CHIPS = [...new Set([...dynamicChips, ...staticChips])].slice(0, 5)
+
+  const blockedCount = (prefs.blocked || []).length
+  const likedCount   = (prefs.liked   || []).reduce((s, l) => s + (l.count || 1), 0)
 
   const run = async () => {
     const cat = category.trim()
@@ -213,12 +265,16 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
         } catch (e) {}
       })
 
-      const scored = applyICP(found)
+      // Filter blocked companies then score + sort
+      const blocked = prefs.blocked || []
+      const filtered = found.filter(p => !blocked.some(b => b.toLowerCase() === p.name.toLowerCase()))
+      const scored = applyICP(filtered)
       setProspects(scored)
       lsSet(LS_PROSPECTS, { results: scored })
       ev.prospectSearch(cat + ' ' + loc, scored.length)
-      setStatus(found.length > 0
-        ? 'Found ' + found.length + ' companies matching "' + cat + '" in ' + loc + (hasICP ? ' — sorted by ICP fit' : '')
+      const hiddenCount = found.length - filtered.length
+      setStatus(scored.length > 0
+        ? `Found ${scored.length} companies matching "${cat}" in ${loc}${hiddenCount > 0 ? ` · ${hiddenCount} hidden by your feedback` : ''}${hasICP ? ' — sorted by ICP fit' : ''}`
         : 'No companies found — try different keywords')
     } catch (e) { setStatus('Search failed: ' + e.message); showToast(e.message, 'error') }
     setLoading(false)
@@ -226,6 +282,17 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
 
   return (
     <div>
+      {/* Learning indicator — shown once feedback exists */}
+      {(likedCount > 0 || blockedCount > 0) && (
+        <div style={{ background: '#F0FDF4', border: '0.5px solid #86EFAC', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#15803d', display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>🧠 Learning from your feedback — {likedCount > 0 ? `${likedCount} 👍 ranking similar companies higher` : ''}  {likedCount > 0 && blockedCount > 0 ? '·' : ''} {blockedCount > 0 ? `${blockedCount} hidden` : ''}</span>
+          <button style={{ background: 'none', border: 'none', color: '#15803d', cursor: 'pointer', fontSize: 11, textDecoration: 'underline', padding: 0 }}
+            onClick={() => { const reset = { liked: [], blocked: [] }; savePrefs(user?.id, reset); setPrefs(reset); showToast('Feedback reset', 'success') }}>
+            Reset
+          </button>
+        </div>
+      )}
+
       {/* ICP notice if configured */}
       {hasICP && (
         <div style={{ background: '#E6F1FB', border: '0.5px solid #B5D4F4', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#185FA5', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -271,8 +338,14 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
               )}
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' }}>
-              <button className="btn btn-primary btn-sm" onClick={() => goToResearch(p.name)} style={{ fontSize: 11 }}>🔍 Research</button>
+              <button className="btn btn-primary btn-sm" onClick={() => { handleLike(p); goToResearch(p.name) }} style={{ fontSize: 11 }}>🔍 Research</button>
               {domain && <button className="btn btn-secondary btn-sm" onClick={() => goToEmail(domain)} style={{ fontSize: 11 }}>✉ Emails</button>}
+              <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
+                <button title="More like this" onClick={() => handleLike(p)}
+                  style={{ background: '#F0FDF4', border: '0.5px solid #86EFAC', borderRadius: 6, padding: '2px 8px', fontSize: 12, cursor: 'pointer', color: '#16a34a' }}>👍</button>
+                <button title="Not relevant — hide this" onClick={() => handleBlock(p)}
+                  style={{ background: '#FEF2F2', border: '0.5px solid #FECACA', borderRadius: 6, padding: '2px 8px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }}>✕</button>
+              </div>
             </div>
           </div>
         )
