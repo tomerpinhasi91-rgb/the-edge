@@ -153,13 +153,19 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
 
     try {
       const profile = loadProfile(user?.id)
-      // Two targeted searches — specific company names + broader supplier sweep
-      const q1 = buildSearchQuery(cat + ' company ' + loc + ' site:com.au OR site:com.au', profile, icp, true)
+      // Three searches for volume: specific, broader, and a named-company angle
+      const q1 = buildSearchQuery(cat + ' company ' + loc, profile, icp, true)
       const q2 = buildSearchQuery(cat + ' manufacturer supplier ' + loc, profile, icp, true)
+      const q3 = buildSearchQuery('list of ' + cat + ' businesses ' + loc, profile, icp, true)
       setStatus('Finding companies…')
-      const [r1, r2] = await Promise.allSettled([serperSearch(q1, false), serperSearch(q2, false)])
+      const [r1, r2, r3] = await Promise.allSettled([
+        serperSearch(q1, false),
+        serperSearch(q2, false),
+        serperSearch(q3, false)
+      ])
       const organic1 = r1.status === 'fulfilled' ? (r1.value.organic || []) : []
       const organic2 = r2.status === 'fulfilled' ? (r2.value.organic || []) : []
+      const organic3 = r3.status === 'fulfilled' ? (r3.value.organic || []) : []
       const kg = r1.status === 'fulfilled' ? r1.value.knowledgeGraph : null
 
       // Build raw text for AI to parse — titles + snippets + urls
@@ -167,7 +173,7 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
       const rawLines = []
       if (kg?.title) rawLines.push(`NAME: ${kg.title} | DESC: ${kg.description || ''} | URL: ${kg.website || ''}`)
       const seenDomains = new Set()
-      ;[...organic1, ...organic2].forEach(r => {
+      ;[...organic1, ...organic2, ...organic3].forEach(r => {
         try {
           const domain = r.link ? new URL(r.link).hostname.replace('www.', '') : ''
           if (!domain || seenDomains.has(domain) || SKIP_DOMAINS.some(s => domain.includes(s))) return
@@ -197,13 +203,14 @@ RULES — EXCLUDE:
 - Industry associations, chambers of commerce, government agencies
 - Directories (yellowpages, yelp, truelocal etc)
 - Recruitment or job listing pages
+- Equipment suppliers or service companies (only include companies that ARE the end customer, not vendors selling TO them)
 
 Return ONLY a JSON array, no explanation, no markdown fences:
 [{"name":"Exact Company Name","description":"One precise sentence: what they specifically make or supply","website":"https://their-domain.com","type":"Industry category e.g. Ready Meals Manufacturing"}]
 
-Return between 4 and 8 companies maximum. If fewer than 4 real companies are found, return what you have.`,
+Return 8 to 12 real companies. If fewer exist in the results, return what you have.`,
         [{ role: 'user', content: `Search was for: "${cat}" in ${loc}\n\nSearch results to parse:\n${rawLines.join('\n')}` }],
-        600,
+        900,
         false,
         'claude-haiku-4-5'
       )
