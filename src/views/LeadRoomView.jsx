@@ -500,11 +500,11 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
         serperSearch(liQuery, false) // no date restrict for LinkedIn
       ])
 
-      // Build rich deduplicated context — generous limits for company research
+      // Build rich deduplicated context — include URLs so AI can cite real sources in signals
       const context = buildAIContext(
         serper.status === 'fulfilled' ? serper.value : null,
         tavily.status === 'fulfilled' ? tavily.value : null,
-        { maxSnippet: 300, maxNews: 5, maxOrganic: 5, maxTavily: 4 }
+        { maxSnippet: 300, maxNews: 5, maxOrganic: 5, maxTavily: 4, includeUrls: true }
       )
 
       // Parse LinkedIn results independently for stakeholder fallback
@@ -540,7 +540,7 @@ Schema: {"name":string,"industry":string,"location":string,"size":string,"revenu
 Signal rules:
 - 3-5 signals with SPECIFIC facts (numbers, dates, names — not vague generalities)
 - signal_date: the actual date or year this news occurred (e.g. "March 2025", "Q1 2026") — required
-- source_url: the actual URL from the search data where this signal was found — use a real URL, never invent one
+- source_url: copy the [url:…] tag that appears next to the article this signal came from. Use ONLY URLs that appear in the search data as [url:…] tags — never invent or guess a URL. If no [url:…] matches, use ""
 - priority "urgent" = happening NOW or within 90 days; "watch" = 3-12 months; "intel" = background context; "grant" = funding available${competitorRule}
 
 Talking point rules:

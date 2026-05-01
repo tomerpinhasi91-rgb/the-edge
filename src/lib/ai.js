@@ -75,10 +75,11 @@ export const buildSearchQuery = (rawQuery, profile = null, icp = null, isProspec
 // Takes raw Serper + Tavily results → clean, deduplicated, trimmed context string
 export const buildAIContext = (serperResult, tavilyResult, opts = {}) => {
   const {
-    maxSnippet = 300,  // chars per snippet — long enough to preserve full sentences
-    maxNews    = 5,
-    maxOrganic = 5,
-    maxTavily  = 4,
+    maxSnippet  = 300,  // chars per snippet — long enough to preserve full sentences
+    maxNews     = 5,
+    maxOrganic  = 5,
+    maxTavily   = 4,
+    includeUrls = false, // when true, appends [url:…] to each entry so AI can cite real sources
   } = opts
 
   // URL-only dedup — same domain can have different relevant articles
@@ -86,6 +87,7 @@ export const buildAIContext = (serperResult, tavilyResult, opts = {}) => {
   let context = ''
 
   const cleanSnip = (s) => (s || '').slice(0, maxSnippet).replace(/\s+/g, ' ').trim()
+  const urlSuffix = (url) => (includeUrls && url) ? ` [url:${url}]` : ''
 
   // Knowledge Graph — highest signal, always include
   const kg = serperResult?.knowledgeGraph
@@ -100,7 +102,7 @@ export const buildAIContext = (serperResult, tavilyResult, opts = {}) => {
     if (newsAdded.length >= maxNews) break
     if (seenUrls.has(n.link)) continue
     seenUrls.add(n.link)
-    newsAdded.push(`[${n.date || 'recent'}] ${n.title}: ${cleanSnip(n.snippet)}`)
+    newsAdded.push(`[${n.date || 'recent'}] ${n.title}: ${cleanSnip(n.snippet)}${urlSuffix(n.link)}`)
   }
   if (newsAdded.length) context += `NEWS:\n${newsAdded.join('\n')}\n\n`
 
@@ -111,7 +113,7 @@ export const buildAIContext = (serperResult, tavilyResult, opts = {}) => {
     if (webAdded.length >= maxOrganic) break
     if (seenUrls.has(r.link)) continue
     seenUrls.add(r.link)
-    webAdded.push(`${r.title}: ${cleanSnip(r.snippet)}`)
+    webAdded.push(`${r.title}: ${cleanSnip(r.snippet)}${urlSuffix(r.link)}`)
   }
   if (webAdded.length) context += `WEB:\n${webAdded.join('\n')}\n\n`
 
@@ -122,7 +124,7 @@ export const buildAIContext = (serperResult, tavilyResult, opts = {}) => {
     if (tavAdded.length >= maxTavily) break
     if (seenUrls.has(r.url)) continue
     seenUrls.add(r.url)
-    tavAdded.push(`${r.title}: ${cleanSnip(r.content)}`)
+    tavAdded.push(`${r.title}: ${cleanSnip(r.content)}${urlSuffix(r.url)}`)
   }
   if (tavAdded.length) context += `ADDITIONAL:\n${tavAdded.join('\n')}`
 

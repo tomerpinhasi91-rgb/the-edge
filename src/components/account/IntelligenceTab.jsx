@@ -15,9 +15,10 @@ const SWEEP_PROMPT = (ctx) =>
 
 Schema: [{"priority":"urgent"|"watch"|"intel"|"grant","title":"one line","body":"2-3 sentences with specific facts","action":"one concrete next step","source":"publication name","source_url":"https://..."}]
 
-Example: [{"priority":"urgent","title":"Apex secures $12M Series B","body":"Apex Protein Co closed a Series B in March 2025. Funds earmarked for production expansion. Strong procurement spend signal.","action":"Call procurement this week while budgets are fresh","source":"AFR","source_url":"https://afr.com/example"}]
+Example: [{"priority":"urgent","title":"Apex secures $12M Series B","body":"Apex Protein Co closed a Series B in March 2025. Funds earmarked for production expansion. Strong procurement spend signal.","action":"Call procurement this week while budgets are fresh","source":"AFR","source_url":"https://afr.com/article/apex-series-b"}]
 
 Rules: 3-5 signals. Specific facts only. Omit vague items.
+source_url: each search result in the data has a [url:…] tag — copy the URL from the article this signal came from. Only use URLs that appear as [url:…] in the data. If no matching URL, use "".
 
 Context: ${ctx}`
 
@@ -87,7 +88,7 @@ export default function IntelligenceTab({ account }) {
       const context = buildAIContext(
         serper.status === 'fulfilled' ? serper.value : null,
         tavily.status === 'fulfilled' ? tavily.value : null,
-        { maxSnippet: 300, maxNews: 5, maxOrganic: 5, maxTavily: 4 }
+        { maxSnippet: 300, maxNews: 5, maxOrganic: 5, maxTavily: 4, includeUrls: true }
       )
 
       // #4 Structured prompt
