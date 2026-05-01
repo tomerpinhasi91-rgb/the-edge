@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../lib/context'
 import { uid } from '../lib/supabase'
-import { callAI, serperSearch, serperMapsSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../lib/ai'
+import { callAI, serperSearch, serperMapsSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON, extractSignals, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../lib/ai'
 import { ev } from '../lib/analytics'
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
 import { initials, cleanDomain, loadProfile, exportAccountsCSV } from '../lib/helpers'
@@ -85,6 +85,8 @@ export default function LeadRoomView({ setView, setActiveId }) {
 
   const goToEmail = (domain) => { setEmailQuery(domain); setTab('email') }
   const goToResearch = (name) => { setResearchQuery(name); setTab('research') }
+  const [prospectQuery, setProspectQuery] = useState({ query: '', location: '' })
+  const goToProspect = (query, location) => { setProspectQuery({ query, location }); setTab('prospect') }
 
   return (
     <>
@@ -99,14 +101,21 @@ export default function LeadRoomView({ setView, setActiveId }) {
         {TABS.map(t => <button key={t.key} className={'tab-btn' + (tab === t.key ? ' active' : '')} onClick={() => setTab(t.key)}>{t.label}</button>)}
       </div>
       <div className="main-content">
-        {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} goToResearch={goToResearch} goToEmail={goToEmail} setView={setView} />}
-        {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} goToEmail={goToEmail} initialQuery={researchQuery} />}
+        {tab === 'prospect' && <ProspectFinder user={user} showToast={showToast} goToResearch={goToResearch} goToEmail={goToEmail} setView={setView} initialProspect={prospectQuery} />}
+        {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} goToEmail={goToEmail} initialQuery={researchQuery} goToProspect={goToProspect} />}
         {tab === 'email' && <EmailFinder user={user} saveAccount={saveAccount} showToast={showToast} leads={leads} initialQuery={emailQuery} />}
-        {tab === 'saved' && <SavedLeads leads={leads} deleteAccount={deleteAccount} setActiveId={setActiveId} setView={setView} showToast={showToast} />}
+        {tab === 'saved' && <SavedLeads leads={leads} deleteAccount={deleteAccount} setActiveId={setActiveId} setView={setView} showToast={showToast} saveAccount={saveAccount} user={user} />}
       </div>
     </>
   )
 }
+
+// #12 Simple sweep prompt for "sweep all" — lightweight, 3 signals max
+const SWEEP_PROMPT_SIMPLE = (ctx) =>
+  `B2B sales analyst. Return ONLY a JSON array — no markdown.
+Schema: [{"priority":"urgent"|"watch"|"intel","title":"one line","body":"2 sentences","action":"one next step","source_url":"https://...","signal_date":"Month YYYY"}]
+Rules: max 3 signals. Only NEW recent developments. Real facts only.
+Context: ${ctx}`
 
 // ICP fit badge colours
 const ICP_BADGE = {
@@ -124,9 +133,9 @@ const loadPrefs = (uid) => {
 const savePrefs = (uid, p) => { try { localStorage.setItem(PREFS_KEY(uid), JSON.stringify(p)) } catch {} }
 
 // ── Prospect Finder ──────────────────────────────────────────────
-function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
-  const [category, setCategory] = useState('')
-  const [location, setLocation] = useState('Australia')
+function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView, initialProspect }) {
+  const [category, setCategory] = useState(initialProspect?.query || '')
+  const [location, setLocation] = useState(initialProspect?.location || 'Australia')
   const [loading, setLoading] = useState(false)
   const [prospects, setProspects] = useState(() => lsGet(LS_PROSPECTS)?.results || [])
   const [status, setStatus] = useState(() => lsGet(LS_PROSPECTS) ? 'Showing last search — search again to refresh' : '')
@@ -413,7 +422,7 @@ const addToHistory = (name) => {
 }
 
 // ── Company Research ─────────────────────────────────────────────
-function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, goToEmail, initialQuery }) {
+function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, goToEmail, goToProspect, initialQuery }) {
   const [query, setQuery] = useState(initialQuery || '')
   const [location, setLocation] = useState('')
   const [loading, setLoading] = useState(false)
@@ -683,6 +692,16 @@ Stakeholder rules:
                 )}
                 {profileDomain && (
                   <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => goToEmail(profileDomain)}>✉ Find emails</button>
+                )}
+                {/* #2 Find similar companies — jumps to Prospect Finder pre-filled with industry + location */}
+                {goToProspect && (profile.industry || profile.location) && (
+                  <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}
+                    onClick={() => {
+                      const q = [profile.industry, profile.size ? profile.size.split(' ')[0] + ' company' : ''].filter(Boolean).join(' ')
+                      goToProspect(q, profile.location || 'Australia')
+                    }}>
+                    🔍 Find similar
+                  </button>
                 )}
               </div>
             </div>
@@ -1298,12 +1317,56 @@ function StrategyTab({ user, leads, setTab, setView, setActiveId }) {
 }
 
 // ── Saved Leads ──────────────────────────────────────────────────
-function SavedLeads({ leads, deleteAccount, setActiveId, setView, showToast }) {
+function SavedLeads({ leads, deleteAccount, setActiveId, setView, showToast, saveAccount, user }) {
+  const [sweepingAll, setSweepingAll] = useState(false)
+  const [sweepProgress, setSweepProgress] = useState({ done: 0, total: 0, current: '' })
+
   const openLead = (lead) => { setActiveId(lead.id); setView('lead') }
   const removeLead = async (lead) => {
     if (!window.confirm('Remove ' + lead.name + '?')) return
     await deleteAccount(lead._dbId)
     showToast('Lead removed', 'success')
+  }
+
+  // #12 Sweep all leads — runs intelligence on every lead and appends new signals
+  const sweepAll = async () => {
+    if (isDemoUser(user)) return showToast('Sweep all is not available in demo mode', 'error')
+    const toSweep = leads.filter(l => l.name)
+    if (!toSweep.length) return
+    setSweepingAll(true)
+    setSweepProgress({ done: 0, total: toSweep.length, current: '' })
+    const profile = loadProfile(user?.id)
+    let newSignalsTotal = 0
+    for (const lead of toSweep) {
+      setSweepProgress(p => ({ ...p, current: lead.name }))
+      try {
+        const q = buildSearchQuery(lead.name + ' ' + (lead.industry || '') + ' news', profile, null)
+        const [serper, tavily] = await Promise.allSettled([serperSearch(q), tavilySearch(q, 4)])
+        const context = buildAIContext(
+          serper.status === 'fulfilled' ? serper.value : null,
+          tavily.status === 'fulfilled' ? tavily.value : null,
+          { maxSnippet: 250, maxNews: 4, maxOrganic: 4, maxTavily: 3 }
+        )
+        if (context.length > 80) {
+          const ctx = 'Company: ' + lead.name + ' | Industry: ' + (lead.industry || '')
+          const raw = await callAI(SWEEP_PROMPT_SIMPLE(ctx), [{ role: 'user', content: 'Search data:\n\n' + context }], 700, false)
+          const parsed = extractSignals(raw)
+          if (parsed && parsed.length) {
+            const existing = new Set((lead.signals || []).map(s => s.title.toLowerCase()))
+            const newOnes = parsed.filter(s => !existing.has(s.title.toLowerCase()))
+              .map(s => ({ id: uid(), date: new Date().toISOString().split('T')[0], ...s }))
+            if (newOnes.length) {
+              await saveAccount({ ...lead, signals: [...(lead.signals || []), ...newOnes] })
+              newSignalsTotal += newOnes.length
+            }
+          }
+        }
+      } catch (e) {}
+      setSweepProgress(p => ({ ...p, done: p.done + 1 }))
+    }
+    setSweepingAll(false)
+    setSweepProgress({ done: 0, total: 0, current: '' })
+    showToast(`Sweep complete — ${newSignalsTotal} new signal${newSignalsTotal !== 1 ? 's' : ''} added across ${toSweep.length} leads`, 'success')
   }
 
   if (leads.length === 0) return (
@@ -1314,7 +1377,14 @@ function SavedLeads({ leads, deleteAccount, setActiveId, setView, showToast }) {
 
   return (
     <div>
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>{leads.length} saved lead{leads.length !== 1 ? 's' : ''}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: '#6b7280' }}>{leads.length} saved lead{leads.length !== 1 ? 's' : ''}</div>
+        {leads.length > 0 && (
+          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={sweepAll} disabled={sweepingAll}>
+            {sweepingAll ? `⚡ Sweeping ${sweepProgress.current}… (${sweepProgress.done}/${sweepProgress.total})` : '⚡ Sweep all'}
+          </button>
+        )}
+      </div>
       {[...leads].sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || '')).map(l => (
         <div key={l.id} style={{ background: 'white', border: '0.5px solid #e5e5e5', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8, cursor: 'pointer' }} onClick={() => openLead(l)}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: '#FAEEDA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#BA7517', flexShrink: 0 }}>{initials(l.name)}</div>
