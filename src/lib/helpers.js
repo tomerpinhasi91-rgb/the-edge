@@ -124,6 +124,8 @@ export const buildRepContext = (profile) => {
     profile.typicalDealSize ? 'Typical deal: ' + profile.typicalDealSize : '',
     profile.averageSalesCycle ? 'Sales cycle: ' + profile.averageSalesCycle : '',
     profile.territory ? 'Territory: ' + profile.territory : '',
+    profile.competitors ? 'Competitors to watch: ' + profile.competitors : '',
+    profile.referenceCustomers ? 'Reference customers: ' + profile.referenceCustomers : '',
   ].filter(Boolean)
   return { repName, repCtx: parts.join(' | ') }
 }

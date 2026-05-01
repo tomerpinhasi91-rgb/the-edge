@@ -484,14 +484,34 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
           .filter(Boolean)
       }
 
-      // #4 Structured prompt with explicit schema + example
+      // Build competitor detection context from profile
+      const userProfile = loadProfile(user?.id)
+      const competitorList = userProfile?.competitors ? userProfile.competitors : ''
+      const referenceList = userProfile?.referenceCustomers ? userProfile.referenceCustomers : ''
+      const competitorRule = competitorList
+        ? `\nCompetitor alert: If search data mentions any of these competitors being used or evaluated by the company: [${competitorList}] — create an URGENT signal titled "Competitor already in play: [name]" with specific details and a counter-strategy action.`
+        : ''
+
+      // #4 #5 #6 #7 Structured prompt — dates required, real source URLs, strict stakeholder rules, competitor detection
       const prompt = `B2B sales intelligence researcher. Build a company profile for "${name}". Return ONLY valid JSON — no markdown, no extra text.
 
-Schema: {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string}],"talking_points":[string,string,string],"stakeholders":[{"name":string,"position":string,"role_type":"Champion"|"Economic Buyer"|"Influencer"|"Blocker"|"Technical Buyer","why_relevant":string,"linkedin_url":string}]}
+Schema: {"name":string,"industry":string,"location":string,"size":string,"revenue":string,"website":string,"description":string,"signals":[{"priority":"urgent"|"watch"|"intel"|"grant","title":string,"body":string,"action":string,"source_url":string,"signal_date":string}],"talking_points":[string,string,string],"stakeholders":[{"name":string,"position":string,"role_type":"Champion"|"Economic Buyer"|"Influencer"|"Blocker"|"Technical Buyer","why_relevant":string,"linkedin_url":string}]}
 
-Example signals: [{"priority":"watch","title":"Expanding into QLD market","body":"Recent job postings indicate a QLD sales hire. Signals distribution expansion plans.","action":"Contact procurement before expansion freezes budgets","source_url":"https://seek.com.au/..."}]
+Signal rules:
+- 3-5 signals with SPECIFIC facts (numbers, dates, names — not vague generalities)
+- signal_date: the actual date or year this news occurred (e.g. "March 2025", "Q1 2026") — required
+- source_url: the actual URL from the search data where this signal was found — use a real URL, never invent one
+- priority "urgent" = happening NOW or within 90 days; "watch" = 3-12 months; "intel" = background context; "grant" = funding available${competitorRule}
 
-Rules: 3-5 signals. 3 talking points. Up to 3 stakeholders ONLY if full names appear in search data — otherwise return [].`
+Talking point rules:
+- 3 conversation-opening questions that reference specific facts found in the search data
+- Each must name a specific signal, event, or challenge you found — never generic questions
+${referenceList ? `- Where relevant, naturally reference how ${referenceList} (existing customers) solved similar challenges` : ''}
+
+Stakeholder rules:
+- ONLY include people whose FULL NAME appears explicitly in the search data
+- If no named individuals found, return stakeholders: []
+- Up to 3 stakeholders maximum`
 
       const result = await callAI(prompt, [{ role: 'user', content: 'Search data:\n\n' + context }], 1400, false)
       const parsed = extractJSON(result)

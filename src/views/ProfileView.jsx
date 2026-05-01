@@ -334,6 +334,16 @@ export default function ProfileView() {
                     {SALES_CYCLES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="form-label">Your competitors <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400 }}>— AI flags when prospects mention these</span></label>
+                  <input className="form-input" value={profile.competitors || ''} onChange={e => set('competitors', e.target.value)}
+                    placeholder="e.g. Multivac, Ulma, ILPRA, Sealpac — comma separated" />
+                </div>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="form-label">Reference customers <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400 }}>— mentioned in AI Coach talking points</span></label>
+                  <input className="form-input" value={profile.referenceCustomers || ''} onChange={e => set('referenceCustomers', e.target.value)}
+                    placeholder="e.g. Baiada, Hilton Food, My Muscle Chef — your best proof points" />
+                </div>
               </div>
             </div>
 
