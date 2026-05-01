@@ -131,6 +131,8 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
   const [prospects, setProspects] = useState(() => lsGet(LS_PROSPECTS)?.results || [])
   const [status, setStatus] = useState(() => lsGet(LS_PROSPECTS) ? 'Showing last search — search again to refresh' : '')
   const [prefs, setPrefs] = useState(() => loadPrefs(user?.id))
+  const [filterText, setFilterText] = useState('') // #3 result filter
+  const [mapsOnly, setMapsOnly] = useState(false)  // #3 Maps-only toggle
 
   const icp = loadICP(user?.id)
   const hasICP = icp && icp.personas && icp.personas.some(p => p.industries || p.name)
@@ -317,7 +319,37 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView }) {
         {status && <div style={{ fontSize: 12, marginTop: 8, color: prospects.length > 0 ? '#0F6E56' : '#9ca3af' }}>{status}</div>}
       </div>
 
-      {prospects.map((p, i) => {
+      {/* #3 Filter bar — only shown when there are results */}
+      {prospects.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input className="form-input" style={{ flex: 1, minWidth: 160, fontSize: 12 }}
+            placeholder="Filter results by name or type…"
+            value={filterText} onChange={e => setFilterText(e.target.value)} />
+          <button className="btn btn-sm" style={{ fontSize: 11, flexShrink: 0, background: mapsOnly ? '#0F6E56' : 'white', color: mapsOnly ? 'white' : '#374151', border: '0.5px solid ' + (mapsOnly ? '#0F6E56' : '#d4d4d4') }}
+            onClick={() => setMapsOnly(m => !m)}>
+            📍 Maps only
+          </button>
+          {(filterText || mapsOnly) && (
+            <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, flexShrink: 0 }}
+              onClick={() => { setFilterText(''); setMapsOnly(false) }}>Clear filter</button>
+          )}
+        </div>
+      )}
+
+      {(() => {
+        // Apply text + Maps filter
+        let visible = prospects
+        if (mapsOnly) visible = visible.filter(p => p.fromMaps)
+        if (filterText.trim()) {
+          const f = filterText.toLowerCase()
+          visible = visible.filter(p =>
+            (p.name || '').toLowerCase().includes(f) ||
+            (p.type || '').toLowerCase().includes(f) ||
+            (p.description || '').toLowerCase().includes(f)
+          )
+        }
+        return visible
+      })().map((p, i) => {
         const domain = p.website ? p.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : ''
         const badge = p.icpFit && p.icpFit.fit !== 'none' ? ICP_BADGE[p.icpFit.fit] : null
         return (
@@ -485,7 +517,6 @@ function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, g
       }
 
       // Build competitor detection context from profile
-      const userProfile = loadProfile(user?.id)
       const competitorList = userProfile?.competitors ? userProfile.competitors : ''
       const referenceList = userProfile?.referenceCustomers ? userProfile.referenceCustomers : ''
       const competitorRule = competitorList

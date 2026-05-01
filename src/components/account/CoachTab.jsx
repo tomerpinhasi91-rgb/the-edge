@@ -37,6 +37,32 @@ export default function CoachTab({ account }) {
     return ctx
   }
 
+  // #9 Persona-aware coaching — detect primary contact role, adjust tone
+  const buildPersonaHint = () => {
+    const contacts = account.contacts || []
+    if (!contacts.length) return ''
+    const priority = ['Economic Buyer', 'Champion', 'Technical Buyer', 'Influencer', 'Blocker', 'User']
+    const primary = priority.reduce((found, role) => found || contacts.find(c => c.role === role), null) || contacts[0]
+    if (!primary) return ''
+    const hints = {
+      'Economic Buyer': 'Primary contact is the Economic Buyer — focus on ROI, risk reduction, and strategic business outcomes. Avoid technical detail.',
+      'Champion':       'Primary contact is a Champion — reinforce their internal business case, give them language to sell up. Focus on making them look good.',
+      'Technical Buyer':'Primary contact is a Technical Buyer — go deep on integration, specs, compliance. Reference customers in their industry.',
+      'Influencer':     'Primary contact is an Influencer — use proof points and social proof. Help them build consensus with their team.',
+      'Blocker':        'Primary contact is a Blocker — acknowledge concerns directly, address objections first, find common ground.',
+      'User':           'Primary contact is an end User — focus on ease of use, daily workflow impact, and practical outcomes.',
+    }
+    return hints[primary.role] || ''
+  }
+
+  // #8 Extract deal score from AI response (e.g. "7/10" or "73/100")
+  const extractDealScore = (text) => {
+    const m = text.match(/\b(\d{1,3})\s*\/\s*(10|100)\b/)
+    if (!m) return null
+    const n = parseInt(m[1], 10), d = parseInt(m[2], 10)
+    return d === 10 ? Math.round(n * 10) : Math.min(100, n)
+  }
+
   const run = async (p) => {
     const q = p || prompt
     if (!q.trim()) return
@@ -64,10 +90,13 @@ export default function CoachTab({ account }) {
     try {
       const { repName, repCtx } = buildRepContext(loadProfile(user?.id))
       const icpCtx = buildICPContext(loadICP(user?.id))
+      const personaHint = buildPersonaHint() // #9
+
       // #10 Compressed system prompt — same meaning, ~25% fewer tokens
       let systemPrompt = 'Elite B2B sales coach. Be specific, direct, actionable. Use all account context.'
       if (repCtx) systemPrompt += '\nREP: ' + repCtx
       if (icpCtx) systemPrompt += '\nICP: ' + icpCtx
+      if (personaHint) systemPrompt += '\nPERSONA: ' + personaHint // #9
       if (repName) systemPrompt += '\nSign emails/scripts as ' + repName + '.'
 
       // #11 Stream the response — user sees output immediately
@@ -78,12 +107,20 @@ export default function CoachTab({ account }) {
         900,
         (_chunk, full) => { streamed = full; setOutput(full) }
       )
-      const newSession = { id: uid(), date: new Date().toISOString().split('T')[0], prompt: q, response: result || streamed }
-      await saveAccount({ ...account, coach_sessions: [...sessions, newSession] })
+      const finalText = result || streamed
+      const newSession = { id: uid(), date: new Date().toISOString().split('T')[0], prompt: q, response: finalText }
+
+      // #8 Parse deal score if this was a "Deal score" request
+      const isDealScore = q.toLowerCase().includes('score this deal') || q.toLowerCase().includes('deal score')
+      const parsedScore = isDealScore ? extractDealScore(finalText) : null
+      const scoreUpdate = parsedScore ? { score: parsedScore, scoreReason: finalText.slice(0, 200) } : {}
+
+      await saveAccount({ ...account, coach_sessions: [...sessions, newSession], ...scoreUpdate })
       const presetMatch = PRESETS.find(p => p.prompt === q)
       ev.coachUsed(presetMatch ? presetMatch.label : 'custom', account.name)
       setPrompt('')
-      showToast('Coach response saved', 'success')
+      const toastMsg = parsedScore ? `Coach response saved · Deal score: ${parsedScore}/100` : 'Coach response saved'
+      showToast(toastMsg, 'success')
     } catch (e) { showToast(e.message, 'error') }
     setLoading(false)
   }

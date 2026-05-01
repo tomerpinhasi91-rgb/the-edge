@@ -99,6 +99,7 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiOutput, setAiOutput] = useState('')
   const [aiLabel, setAiLabel] = useState('')
+  const [showFollowUpPrompt, setShowFollowUpPrompt] = useState(false) // #10
 
   const AI_ACTIONS = isLead ? LEAD_AI_ACTIONS : DEAL_AI_ACTIONS
   const save = (updates) => saveAccount({ ...account, ...updates })
@@ -110,6 +111,8 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
     await save({ activities })
     ev.activityLogged(form.type, account.name)
     setShowForm(false)
+    // #10 After logging a call or meeting, prompt to draft a follow-up
+    if (form.type === 'call' || form.type === 'meeting') setShowFollowUpPrompt(true)
     setForm({ type: 'call', title: '', date: new Date().toISOString().split('T')[0], notes: '', next: '' })
     showToast('Activity logged', 'success')
   }
@@ -209,6 +212,20 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
           </div>
         )}
       </div>
+
+      {/* #10 Follow-up prompt — shown after logging a call or meeting */}
+      {showFollowUpPrompt && (
+        <div style={{ background: '#E6F1FB', border: '0.5px solid #185FA5', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: '#185FA5', fontWeight: 500 }}>✉️ Draft a follow-up email for this {account._type === 'account' ? 'deal' : 'lead'}?</div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button className="btn btn-primary btn-sm" style={{ fontSize: 11 }} onClick={() => {
+              setShowFollowUpPrompt(false)
+              runAI(AI_ACTIONS.find(a => a.label.includes('Follow up') || a.label.includes('outreach')))
+            }}>Draft now</button>
+            <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => setShowFollowUpPrompt(false)}>Dismiss</button>
+          </div>
+        </div>
+      )}
 
       {/* ── Activity log ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
