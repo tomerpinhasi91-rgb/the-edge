@@ -10,7 +10,9 @@ const STARTERS = [
   'How do I find new prospects?',
   "What's the difference between a lead and a deal?",
   'How does the AI coach work?',
-  'How do I log a sales activity?',
+  'How does the RFQ analyser work?',
+  'How do I log a call by voice?',
+  'What is the Morning Briefing?',
   'What are intelligence signals?',
   'How do I set up my ICP?',
 ]
@@ -26,8 +28,17 @@ const STARTER_ANSWERS = {
   'How does the AI coach work?':
     `Open any lead or deal → AI Coach tab.\n\nChoose a preset:\n• 📋 Full brief — complete account summary\n• 🎯 Deal score — win probability + reasoning\n• 📞 Pre-call prep — what to say before a call\n• ⚠️ Risk analysis — what could kill this deal\n• ✉️ Outreach email — ready-to-send draft\n• 📅 Meeting agenda — structured 45-min plan\n• 🏆 Win strategy — how to close\n\nThe coach uses your rep profile, ICP, deal data and last 5 activities — so the more you fill in, the sharper the output.`,
 
-  'How do I log a sales activity?':
-    `Open any lead or deal → Activities tab → tap "+ Log activity".\n\nChoose a type: call, meeting, email, note, demo, or proposal.\n\nFill in:\n• Title (required) — e.g. "Discovery call with Jane Smith"\n• Date\n• Notes — key takeaways or decisions\n• Next action — e.g. "Send proposal by Friday"\n\nThe AI coach reads your last 5 activities to generate context-aware coaching and follow-up content.`,
+  'How does the RFQ analyser work?':
+    `Open any lead or deal → tap the 📄 RFQ tab.\n\nUpload a PDF or paste the RFQ text, then hit Analyse. The AI reads the document and extracts:\n• Requirements table (with critical items flagged in red)\n• Risks and their severity\n• Win strategy tailored to that specific account\n• Key questions to ask the buyer\n• A numbered response structure to follow\n• Red flags to watch for\n\nBecause it's inside the lead or deal, the AI knows who you're selling to and tailors the win strategy to that account.\n\nPerfect for bid/tender responses — turns a 50-page RFQ into a clear action plan in under a minute.`,
+
+  'How do I log a call by voice?':
+    `Open any lead or deal → Activities tab → tap 🎙️ Voice Log at the top.\n\nHit the green microphone button and start talking — debrief your call out loud. Say what was discussed, decisions made, next steps, any buying signals.\n\nWhen you're done, tap Stop. The AI transcribes your words and automatically fills in:\n• Activity type and title\n• Notes from the call\n• Next action to take\n• Any signals detected\n\nThen hit "+ Log activity" to save it. Works hands-free — great for logging straight after a call while it's fresh.`,
+
+  'What is the Morning Briefing?':
+    `The Morning Briefing is a daily banner that appears at the top of the app when you log in.\n\nIt shows:\n• Deals going cold — accounts in active stages with no activity for 5+ days (red chips)\n• Leads going quiet — any account with 10+ days of silence (yellow chips)\n• 3 AI-generated priority actions for your day, based on your actual pipeline\n\nIt's designed to take 10 seconds — a fast daily pulse on where your energy should go.\n\nClick any cold account chip to jump straight to it. Dismiss the briefing once you've read it and it won't show again until tomorrow.`,
+
+  'How do I analyse an email thread?':
+    `Open any lead or deal → Activities tab → tap 📧 Email Analyse.\n\nPaste in any email thread — customer reply, objection, long negotiation chain — and hit Analyse.\n\nThe AI extracts:\n• Sentiment (positive / neutral / negative / mixed)\n• Summary of what was discussed\n• Key decisions made\n• Open questions still unanswered\n• Signals — buying intent, concerns, urgency\n• A suggested reply draft\n• Recommended next step\n\nYou can save individual signals straight to the account, and copy the suggested reply to use in your email client.`,
 
   'What are intelligence signals?':
     `Signals are AI-researched insights about a company — things that tell you the right time and angle to reach out.\n\n4 types:\n🔴 Urgent — act now (e.g. new funding round, leadership change)\n🟡 Watch — keep an eye on (e.g. expansion plans)\n🔵 Intel — useful context (e.g. market position, recent news)\n🟢 Grant — funding opportunity relevant to them\n\nTo get signals: open any lead or deal → Intel tab → hit ⚡ Sweep or tap one of the quick buttons. Signals are saved to the account for future reference.`,
@@ -39,13 +50,39 @@ const STARTER_ANSWERS = {
 const APP_GUIDE = `You are the Edge Assistant — a helpful, friendly guide for The Edge, a B2B sales intelligence platform for field sales reps.
 
 THE EDGE — FEATURE OVERVIEW:
-• Lead Room: Find new prospects using AI-powered search. Research any company (signals, talking points). Save promising companies as leads. Use Email Finder (Hunter.io) to find contact emails.
-• Leads: Saved prospect companies. Each lead has: Overview (score, company info, signals), Intel (AI news sweep with quick buttons), Activities (log calls/meetings/emails/demos, AI coach generates outreach emails, call scripts, next best actions, meeting agendas), Contacts (add key stakeholders with role types: Champion, Economic Buyer, Influencer, Blocker, Technical Buyer, User), Notes, AI Coach (full coaching session). Leads can be converted to Deals when ready.
-• Deals (Accounts): Active pipeline opportunities. Same tabs as Leads plus: Dashboard with deal metrics (stage, value, risk, urgency), win strategy, checklist, and pipeline stages (Qualify → Proposal → Negotiate → Closing → Won/Lost).
-• Profile: Set your rep details (name, company, what you sell, deal size, territory) and your ICP (Ideal Customer Profile — target industries, company sizes, personas, value props, messaging). This context is automatically injected into every AI response across the app.
-• AI Coach: Available in every lead and deal. Generates context-aware coaching based on your profile, ICP, and deal/lead data.
-• Market Intel: Available in Intel tabs — industry trend research with 24h cache.
-• Intelligence Sweep: Quick AI research on any company using web search → returns prioritised signals (urgent/watch/intel/grant).
+
+LEAD ROOM (🎯 sidebar):
+• Prospect Finder — AI-powered company search by industry/location/keyword. Returns 12 companies. Each has: 🔍 Research (signals + talking points), ✉ Emails (Hunter.io contact emails), Save as lead button.
+• Email Finder — find emails for any domain using Hunter.io. Returns person-level results with confidence scores.
+
+LEADS (saved prospect companies):
+Each lead has these tabs:
+• Overview — lead score circle, company info, key signals
+• Intel — AI intelligence sweep with quick topic buttons (news, funding, hiring, tenders, compliance). Each button runs a targeted web search and returns prioritised signals.
+• Activities — log calls, meetings, emails, notes, demos, proposals. After logging a call or meeting, an AI follow-up banner appears to generate outreach or next actions.
+  ↳ 🎙️ Voice Log — tap mic, speak your call debrief out loud, AI transcribes + pre-fills the activity form automatically
+  ↳ 📧 Email Analyse — paste any email thread, AI extracts sentiment, decisions, signals, suggests a reply. Save signals directly to the lead.
+• Contacts — add key stakeholders with role types (Champion, Economic Buyer, Influencer, Blocker, Technical Buyer, User)
+• 📄 RFQ — upload or paste an RFQ/tender document. AI extracts requirements, risks, win strategy, key questions, response structure — all tailored to this specific account.
+• Notes — free-form notes
+• AI Coach — full coaching session with presets: Full brief, Deal score, Pre-call prep, Risk analysis, Outreach email, Meeting agenda, Win strategy. Reads profile + ICP + activities + contacts.
+Leads can be converted to Deals when they become active opportunities.
+
+DEALS / ACCOUNTS (active pipeline):
+Same tabs as Leads, plus:
+• Dashboard — deal metrics (stage, value, risk, urgency signals, win strategy, stage checklist with progress). Pipeline stages: Qualify → Proposal → Negotiate → Closing → Won/Lost.
+
+MORNING BRIEFING (daily banner at top of app):
+• Appears once per day on login — takes 10 seconds to read
+• Shows deals going cold: active-stage accounts (proposal/negotiate/closing) with 5+ days no activity → red "⚠️ Cold" chip
+• Shows leads going quiet: any account with 10+ days no activity → yellow chip
+• Shows 3 AI-generated priority actions for the day based on your pipeline
+• Click any chip to jump to that account. Dismiss to hide until tomorrow.
+
+PROFILE (👤 sidebar):
+• Sales Context — your name, company, what you sell, deal size, territory, typical cycle
+• ICP tab — Ideal Customer Profile: target industries, company sizes, decision-maker personas, pain points, value proposition, messaging framework
+• All of this is automatically injected into every AI feature across the app
 
 PHOTO / BRAND ANALYSIS MODE:
 When a user uploads a photo of a product, brand, packaging, shelf, storefront, or business:
@@ -59,8 +96,10 @@ Be brief and punchy — the rep is standing in a shop or venue. No waffle.
 
 TIPS:
 • Fill in your Profile and ICP first — every AI feature improves with that context.
-• Use quick buttons in the Intel tab for instant sweeps.
+• Use quick buttons in the Intel tab for instant sweeps (they auto-run on tap).
 • Log activities to build deal history — the AI coach uses your last 5 activities.
+• Voice Log right after a call — speak for 30 seconds, AI does the rest.
+• Paste RFQs into the 📄 RFQ tab of the relevant lead or deal for account-specific analysis.
 • Signal types: urgent (act now), watch (monitor), intel (useful context), grant (funding opportunity).
 
 Be concise, practical and friendly. Answer app questions precisely. For general sales advice, be immediately actionable.`
@@ -105,16 +144,25 @@ function getDisplayParts(m) {
 }
 
 // ── Proactive nudge helpers ──────────────────────────────────────
+const WHATS_NEW_VERSION = 'v3_2' // bump this to re-show the "what's new" nudge
+
 function isProfileEmpty(profile) {
   return !profile || (!profile.firstName && !profile.whatYouSell && !profile.company)
 }
 function isICPEmpty(icp) {
   return !icp || !icp.personas || icp.personas.length === 0
 }
+
+function buildWhatsNewMessage(profile) {
+  const name = profile?.firstName || null
+  const hi = name ? `Hey ${name}! 🎉` : 'Hey! 🎉'
+  return `${hi} The Edge just got some big upgrades — here's what's new:\n\n🌅 Morning Briefing — every time you open the app, you'll see a daily summary of deals going cold + 3 AI priorities for your day.\n\n📄 RFQ Analyser — open any lead or deal → 📄 RFQ tab. Upload a tender or paste an RFQ. AI extracts requirements, risks, win strategy, key questions — all tailored to that account.\n\n🎙️ Voice Call Logger — Activities tab → tap 🎙️ Voice Log. Debrief your call out loud, AI transcribes and fills in the activity form automatically.\n\n📧 Email Analyser — Activities tab → tap 📧 Email Analyse. Paste any email thread, get sentiment, decisions, signals, and a suggested reply.\n\nAsk me "How does the RFQ analyser work?" or "How do I log a call by voice?" to learn more.`
+}
+
 function buildNudgeMessage(profile, icp, user, accounts) {
   const profileEmpty = isProfileEmpty(profile)
   const icpEmpty = isICPEmpty(icp)
-  if (!profileEmpty && !icpEmpty) return null // all good
+  if (!profileEmpty && !icpEmpty) return null // all good — use what's-new path instead
 
   const name = profile?.firstName || user?.email?.split('@')[0] || null
   const hi = name ? `Hey ${name}! 👋` : 'Hey there! 👋'
@@ -148,16 +196,30 @@ export default function ChatBot() {
   useEffect(() => {
     if (!user) return
     const nudgeKey = `te_nudge_${user.id}`
+    const whatsNewKey = `te_whats_new_${WHATS_NEW_VERSION}_${user.id}`
     if (sessionStorage.getItem(nudgeKey)) return // already shown this session
     const timer = setTimeout(() => {
       const profile = loadProfile(user.id)
       const icp = loadICP(user.id)
-      const msg = buildNudgeMessage(profile, icp, user, accounts)
-      if (msg) {
+
+      // Priority 1: profile/ICP setup nudge for users who haven't set up yet
+      const setupMsg = buildNudgeMessage(profile, icp, user, accounts)
+      if (setupMsg) {
         sessionStorage.setItem(nudgeKey, '1')
-        setMessages([{ role: 'assistant', content: msg, _nudge: true }])
+        setMessages([{ role: 'assistant', content: setupMsg, _nudge: true }])
         setUnread(true)
-        ev.chatNudgeSeen(msg.includes('Profile') || msg.includes('profile') ? 'profile' : msg.includes('ICP') ? 'icp' : 'general')
+        ev.chatNudgeSeen(setupMsg.includes('Profile') || setupMsg.includes('profile') ? 'profile' : setupMsg.includes('ICP') ? 'icp' : 'general')
+        return
+      }
+
+      // Priority 2: "What's new" nudge for returning users who haven't seen this version yet
+      if (!localStorage.getItem(whatsNewKey) && accounts && accounts.length > 0) {
+        localStorage.setItem(whatsNewKey, '1')
+        sessionStorage.setItem(nudgeKey, '1')
+        const whatsNewMsg = buildWhatsNewMessage(profile)
+        setMessages([{ role: 'assistant', content: whatsNewMsg, _nudge: true, _whatsNew: true }])
+        setUnread(true)
+        ev.chatNudgeSeen('whats_new')
       }
     }, 4000)
     return () => clearTimeout(timer)
@@ -344,7 +406,7 @@ export default function ChatBot() {
             {/* Nudge message highlight — subtle banner above first assistant message */}
             {messages.length > 0 && messages[0]?._nudge && (
               <div style={{ fontSize: 11, color: '#0F6E56', fontWeight: 600, textAlign: 'center', padding: '4px 8px', background: '#f3faf7', borderRadius: 6, marginBottom: 2 }}>
-                💡 Personalised tip for you
+                {messages[0]?._whatsNew ? '🚀 What\'s new in The Edge' : '💡 Personalised tip for you'}
               </div>
             )}
 

@@ -265,6 +265,12 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
       setEmailAnalysis({
         sentiment: 'positive',
         summary: 'Procurement manager Sarah Chen at Apex Protein confirmed they are moving forward with the tray seal evaluation. They have shortlisted 3 vendors and are requesting a formal proposal by end of month. Budget is confirmed at $950K.',
+        key_phrases: [
+          '"We have confirmed budget of $950K for this project."',
+          '"The shortlist is down to three vendors — you are on it."',
+          '"We need proposals by end of month — no extensions."',
+          '"FAT at the supplier facility would be preferred."',
+        ],
         key_decisions: [
           'Shortlist reduced to 3 vendors including us',
           'Proposal deadline: end of month',
@@ -283,7 +289,7 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
       return
     }
 
-    const system = 'You are a B2B sales intelligence analyst. Analyse this email thread and return ONLY valid JSON: {"sentiment":"positive"|"neutral"|"negative"|"urgent","summary":string,"key_decisions":[string],"open_questions":[string],"signals":[{"priority":"urgent"|"watch"|"intel","title":string,"body":string,"action":string}],"suggested_reply":string,"next_step":string}'
+    const system = 'You are a B2B sales intelligence analyst. Analyse this email thread and return ONLY valid JSON: {"sentiment":"positive"|"neutral"|"negative"|"urgent","summary":string,"key_phrases":[string],"key_decisions":[string],"open_questions":[string],"signals":[{"priority":"urgent"|"watch"|"intel","title":string,"body":string,"action":string}],"suggested_reply":string,"next_step":string}\n\nkey_phrases: extract 2-4 verbatim sentences or short quotes from the email that carry the most sales intelligence value — e.g. budget confirmations, timelines, objections, commitments. Copy exact wording from the email.'
     try {
       const raw = await callAI(system, [{ role: 'user', content: emailText }], 800)
       const parsed = extractJSON(raw)
@@ -437,6 +443,25 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
                 {/* Summary */}
                 {emailAnalysis.summary && (
                   <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.65 }}>{emailAnalysis.summary}</div>
+                )}
+
+                {/* Key phrases */}
+                {emailAnalysis.key_phrases?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Key phrases</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {emailAnalysis.key_phrases.map((phrase, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#FAFAFA', border: '1px solid #e5e7eb', borderLeft: '3px solid #0F6E56', borderRadius: 6, padding: '7px 10px' }}>
+                          <span style={{ flex: 1, fontSize: 12, color: '#374151', fontStyle: 'italic', lineHeight: 1.55 }}>{phrase}</span>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(phrase).then(() => showToast('Copied', 'success'))}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#9ca3af', flexShrink: 0, padding: '0 2px' }}
+                            title="Copy phrase"
+                          >⧉</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* Key decisions */}

@@ -6,6 +6,7 @@ import { isDemoUser, getDemoKey, DEMO_SWEEPS, DEMO_COACH, delay } from '../lib/d
 import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext, exportAccountsCSV } from '../lib/helpers'
 import { loadICP, buildICPContext } from '../lib/icp'
 import ActivitiesTab from '../components/account/ActivitiesTab'
+import RFQReader from '../components/shared/RFQReader'
 import MarketIntelPanel from '../components/shared/MarketIntelPanel'
 import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
@@ -80,6 +81,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
     { key: 'intelligence', label: 'Intelligence' },
     { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
+    { key: 'rfq', label: '📄 RFQ' },
     { key: 'notes', label: 'Notes' },
     { key: 'coach', label: 'AI Coach' },
   ]
@@ -108,6 +110,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
       {tab === 'intelligence' && <LeadIntelligence lead={lead} save={save} user={user} showToast={showToast} />}
       {tab === 'activities' && <ActivitiesTab account={lead} isLead={true} onConvert={promote} />}
       {tab === 'contacts' && <LeadContacts lead={lead} save={save} showToast={showToast} />}
+      {tab === 'rfq' && <div className="main-content"><RFQReader user={user} showToast={showToast} account={lead} /></div>}
       {tab === 'notes' && <LeadNotes lead={lead} save={save} showToast={showToast} />}
       {tab === 'coach' && <LeadCoach lead={lead} save={save} user={user} showToast={showToast} />}
 

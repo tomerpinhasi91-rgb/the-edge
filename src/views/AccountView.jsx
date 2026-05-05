@@ -5,6 +5,7 @@ import ContactsTab from '../components/account/ContactsTab'
 import ActivitiesTab from '../components/account/ActivitiesTab'
 import IntelligenceTab from '../components/account/IntelligenceTab'
 import CoachTab from '../components/account/CoachTab'
+import RFQReader from '../components/shared/RFQReader'
 import Modal from '../components/ui/Modal'
 import { STAGE_LABELS, exportAccountsCSV } from '../lib/helpers'
 
@@ -39,7 +40,7 @@ function NotesTab({ account }) {
 }
 
 export default function AccountView({ account, setView }) {
-  const { saveAccount, deleteAccount, showToast } = useApp()
+  const { user, saveAccount, deleteAccount, showToast } = useApp()
   const [tab, setTab] = useState('dashboard')
   const [editOpen, setEditOpen] = useState(false)
   const [editForm, setEditForm] = useState(null)
@@ -69,6 +70,7 @@ export default function AccountView({ account, setView }) {
     { key: 'intelligence', label: 'Intelligence' },
     { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
+    { key: 'rfq', label: '📄 RFQ' },
     { key: 'notes', label: 'Notes' },
     { key: 'coach', label: 'AI Coach' },
   ]
@@ -101,6 +103,7 @@ export default function AccountView({ account, setView }) {
       {tab === 'intelligence' && <IntelligenceTab account={account} />}
       {tab === 'activities' && <ActivitiesTab account={account} />}
       {tab === 'contacts' && <ContactsTab account={account} />}
+      {tab === 'rfq' && <div className="main-content"><RFQReader user={user} showToast={showToast} account={account} /></div>}
       {tab === 'notes' && <NotesTab account={account} />}
       {tab === 'coach' && <CoachTab account={account} />}
 

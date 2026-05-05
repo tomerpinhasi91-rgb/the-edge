@@ -87,7 +87,7 @@ function SeverityBadge({ severity }) {
   )
 }
 
-export default function RFQReader({ user, showToast }) {
+export default function RFQReader({ user, showToast, account }) {
   const [mode, setMode] = useState('upload') // 'upload' | 'paste'
   const [pasteText, setPasteText] = useState('')
   const [fileName, setFileName] = useState('')
@@ -146,6 +146,12 @@ export default function RFQReader({ user, showToast }) {
     }
 
     try {
+      // Inject account context into system prompt when analysing from a lead/deal
+      const accountCtx = account
+        ? `\n\nSELLER CONTEXT: You are helping a sales rep at a company selling to ${account.name}${account.industry ? ` (${account.industry})` : ''}. Tailor win strategy and questions to this specific account.`
+        : ''
+      const systemWithCtx = SYSTEM_PROMPT + accountCtx
+
       let messages
       if (mode === 'paste') {
         messages = [{ role: 'user', content: pasteText }]
@@ -161,7 +167,7 @@ export default function RFQReader({ user, showToast }) {
         messages = [{ role: 'user', content: fileContent?.data || '' }]
       }
 
-      const raw = await callAI(SYSTEM_PROMPT, messages, 2000)
+      const raw = await callAI(systemWithCtx, messages, 2000)
       const parsed = extractJSON(raw)
       if (!parsed) throw new Error('Could not parse analysis response')
       setAnalysis(parsed)
@@ -175,6 +181,7 @@ export default function RFQReader({ user, showToast }) {
     <div>
       <div style={{ fontSize: 17, fontWeight: 700, color: '#1f2937', marginBottom: 16 }}>
         📄 RFQ / Tender Analyser
+        {account && <span style={{ fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>— {account.name}</span>}
       </div>
 
       {/* Mode toggle */}
