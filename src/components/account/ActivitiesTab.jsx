@@ -117,6 +117,23 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
   const save = (updates) => saveAccount({ ...account, ...updates })
   const setF = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
+  // Quick-save an activity without opening the modal
+  const quickSaveActivity = async ({ type, title, notes, next }) => {
+    const entry = { id: uid(), type, title, date: new Date().toISOString().split('T')[0], notes: notes || '', next: next || '' }
+    const activities = [...(account.activities || []), entry]
+    await save({ activities })
+    showToast('Saved to activity log ✓', 'success')
+  }
+
+  // Map AI action label → activity type
+  const labelToType = (label) => {
+    if (/email|outreach/i.test(label)) return 'email'
+    if (/call|script/i.test(label)) return 'call'
+    if (/proposal/i.test(label)) return 'proposal'
+    if (/meeting|agenda/i.test(label)) return 'meeting'
+    return 'note'
+  }
+
   const addActivity = async () => {
     if (!form.title.trim()) return showToast('Title required', 'error')
     const activities = [...(account.activities || []), { id: uid(), ...form }]
@@ -347,6 +364,7 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
               <div style={{ fontSize: 11, fontWeight: 600, color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{aiLabel}</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => navigator.clipboard.writeText(aiOutput).then(() => showToast('Copied', 'success'))}>Copy</button>
+                <button className="btn btn-primary btn-sm" style={{ fontSize: 10 }} onClick={() => quickSaveActivity({ type: labelToType(aiLabel), title: aiLabel + ' — ' + account.name, notes: aiOutput })}>💾 Save</button>
                 <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => setAiOutput('')}>Clear</button>
               </div>
             </div>
@@ -488,6 +506,24 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
                     Next step: {emailAnalysis.next_step}
                   </div>
                 )}
+
+                {/* Save email analysis as activity */}
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ alignSelf: 'flex-start', fontSize: 12 }}
+                  onClick={() => quickSaveActivity({
+                    type: 'email',
+                    title: 'Email analysis — ' + account.name,
+                    notes: [
+                      emailAnalysis.summary,
+                      emailAnalysis.key_decisions?.length ? 'Decisions: ' + emailAnalysis.key_decisions.join(' · ') : '',
+                      emailAnalysis.suggested_reply ? 'Suggested reply drafted.' : '',
+                    ].filter(Boolean).join('\n\n'),
+                    next: emailAnalysis.next_step || '',
+                  })}
+                >
+                  💾 Save as activity
+                </button>
               </div>
             )}
           </div>
@@ -496,7 +532,13 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
         {/* ── RFQ panel ── */}
         {activeCapture === 'rfq' && (
           <div style={{ marginTop: 14, borderTop: '1px solid #e5e7eb', paddingTop: 4 }}>
-            <RFQReader user={user} showToast={showToast} account={account} embedded />
+            <RFQReader
+              user={user}
+              showToast={showToast}
+              account={account}
+              embedded
+              onSaveActivity={(data) => quickSaveActivity(data)}
+            />
           </div>
         )}
       </div>

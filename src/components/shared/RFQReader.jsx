@@ -87,7 +87,7 @@ function SeverityBadge({ severity }) {
   )
 }
 
-export default function RFQReader({ user, showToast, account, embedded = false }) {
+export default function RFQReader({ user, showToast, account, embedded = false, onSaveActivity }) {
   const [mode, setMode] = useState('upload') // 'upload' | 'paste'
   const [pasteText, setPasteText] = useState('')
   const [fileName, setFileName] = useState('')
@@ -411,6 +411,28 @@ export default function RFQReader({ user, showToast, account, embedded = false }
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Save as activity */}
+          {onSaveActivity && (
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ alignSelf: 'flex-start', fontSize: 13, marginTop: 4 }}
+              onClick={() => onSaveActivity({
+                type: 'note',
+                title: 'RFQ Analysis — ' + (analysis.title || account?.name || 'RFQ'),
+                notes: [
+                  analysis.win_strategy ? 'Win strategy: ' + analysis.win_strategy : '',
+                  analysis.requirements?.filter(r => r.critical).length
+                    ? 'Critical requirements: ' + analysis.requirements.filter(r => r.critical).map(r => r.item).join('; ')
+                    : '',
+                  analysis.red_flags?.length ? 'Red flags: ' + analysis.red_flags.join('; ') : '',
+                ].filter(Boolean).join('\n\n'),
+                next: analysis.key_questions?.[0] || '',
+              })}
+            >
+              💾 Save as activity
+            </button>
           )}
         </div>
       )}
