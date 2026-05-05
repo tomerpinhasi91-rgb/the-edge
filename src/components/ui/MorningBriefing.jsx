@@ -105,7 +105,7 @@ export default function MorningBriefing({ accounts, user, setView, setActiveId }
     })()
   }, [dismissed, user])
 
-  if (dismissed) return null
+  if (dismissed || !accounts.length) return null
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'

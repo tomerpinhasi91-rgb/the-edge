@@ -63,7 +63,13 @@ module.exports = async function handler(req, res) {
     'anthropic-version': '2023-06-01'
   };
 
+  // Detect if any message contains a document block (PDF) — needs beta header
+  const hasPdf = messages.some(m =>
+    Array.isArray(m.content) && m.content.some(b => b.type === 'document')
+  );
+
   if (use_search || tools) headers['anthropic-beta'] = 'web-search-2025-03-05';
+  else if (hasPdf) headers['anthropic-beta'] = 'pdfs-2024-09-25';
 
   // ── #11 Streaming path ──────────────────────────────────────────
   if (stream) {

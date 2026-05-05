@@ -129,6 +129,8 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
 .spinner-dark { border-color: rgba(15,110,86,0.2); border-top-color: var(--green); }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100% { box-shadow: 0 4px 16px rgba(239,68,68,0.4); } 50% { box-shadow: 0 4px 24px rgba(239,68,68,0.7), 0 0 0 8px rgba(239,68,68,0.1); } }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
 
 /* AI output */
 .ai-output { font-size: 13px; line-height: 1.7; color: var(--gray-800); white-space: pre-wrap; }
