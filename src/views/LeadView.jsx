@@ -92,12 +92,12 @@ export default function LeadView({ lead, setView, setActiveId }) {
           <div style={{ fontSize: 17, fontWeight: 600 }}>{lead.name}</div>
           <div style={{ fontSize: 12, color: '#9ca3af' }}>{[lead.industry, lead.location, lead.size].filter(Boolean).join(' · ')}</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 20, background: '#FAEEDA', color: '#BA7517', fontWeight: 500 }}>Lead</span>
-          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => exportAccountsCSV([lead], lead.name.replace(/\s+/g, '-').toLowerCase() + '-lead.csv')}>↓ CSV</button>
-          <button className="btn btn-secondary btn-sm" onClick={openEdit}>Edit</button>
-          <button className="btn btn-secondary btn-sm" onClick={removeLead}>Remove</button>
-          <button className="btn btn-primary btn-sm" onClick={promote}>Convert to deal →</button>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: '#FAEEDA', color: '#BA7517', fontWeight: 500 }}>Lead</span>
+          <button className="btn btn-secondary btn-sm topbar-btn-hide" style={{ fontSize: 11 }} onClick={() => exportAccountsCSV([lead], lead.name.replace(/\s+/g, '-').toLowerCase() + '-lead.csv')}>↓ CSV</button>
+          <button className="btn btn-secondary btn-sm" style={{ fontSize: 12 }} onClick={openEdit}>Edit</button>
+          <button className="btn btn-secondary btn-sm topbar-btn-hide" style={{ fontSize: 12 }} onClick={removeLead}>Remove</button>
+          <button className="btn btn-primary btn-sm" style={{ fontSize: 12 }} onClick={promote}>→ Deal</button>
         </div>
       </div>
 

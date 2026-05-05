@@ -72,6 +72,39 @@ function EmptyState({ setView }) {
   )
 }
 
+// Mobile account switcher strip — horizontal scroll between leads/deals
+function MobileAccountSwitcher({ accounts, activeId, setActiveId, view }) {
+  if (view !== 'lead' && view !== 'account') return null
+  const list = accounts.filter(a => a._type === (view === 'lead' ? 'lead' : 'account'))
+  if (list.length <= 1) return null
+  return (
+    <div style={{
+      display: 'flex', overflowX: 'auto', gap: 8, padding: '8px 12px',
+      background: 'white', borderBottom: '0.5px solid #e5e7eb',
+      scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', flexShrink: 0,
+    }}
+      className="mobile-only"
+    >
+      {list.map(acct => (
+        <button
+          key={acct.id}
+          onClick={() => setActiveId(acct.id)}
+          style={{
+            flexShrink: 0, padding: '5px 14px', borderRadius: 20,
+            border: '1px solid', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+            background: acct.id === activeId ? '#0F6E56' : 'white',
+            color: acct.id === activeId ? 'white' : '#374151',
+            borderColor: acct.id === activeId ? '#0F6E56' : '#e5e7eb',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {acct.name}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function App() {
   const { user, loading, accounts, dealAccounts } = useApp()
   const [view, setViewRaw] = useState(getPersistedView)
@@ -132,6 +165,7 @@ export default function App() {
       <Sidebar view={view} setView={setView} activeId={activeId} setActiveId={setActiveId} />
       <div className="main">
         <MorningBriefing accounts={accounts} user={user} setView={setView} setActiveId={setActiveId} />
+        <MobileAccountSwitcher accounts={accounts} activeId={activeId} setActiveId={setActiveId} view={view} />
         <ErrorBoundary>
           {isNewUser && view !== 'new-account' && view !== 'leadroom' && view !== 'profile' && view !== 'admin'
             ? <EmptyState setView={setView} />
