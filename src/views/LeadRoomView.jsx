@@ -7,6 +7,7 @@ import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, del
 import { initials, cleanDomain, loadProfile, exportAccountsCSV } from '../lib/helpers'
 import { loadICP, scoreProspectICP, linkedInSearchStrings, buildICPContext } from '../lib/icp'
 import MarketIntelPanel from '../components/shared/MarketIntelPanel'
+import RFQReader from '../components/shared/RFQReader'
 import Spinner from '../components/ui/Spinner'
 
 // ── PWA Install Banner ───────────────────────────────────────────
@@ -81,6 +82,7 @@ export default function LeadRoomView({ setView, setActiveId }) {
     { key: 'research', label: '🔍 Research' },
     { key: 'email', label: '✉ Emails' },
     { key: 'saved', label: 'Saved (' + leads.length + ')' },
+    { key: 'rfq', label: '📄 RFQ' },
   ]
 
   const goToEmail = (domain) => { setEmailQuery(domain); setTab('email') }
@@ -105,6 +107,7 @@ export default function LeadRoomView({ setView, setActiveId }) {
         {tab === 'research' && <CompanyResearch user={user} saveAccount={saveAccount} showToast={showToast} setActiveId={setActiveId} setView={setView} goToEmail={goToEmail} initialQuery={researchQuery} goToProspect={goToProspect} />}
         {tab === 'email' && <EmailFinder user={user} saveAccount={saveAccount} showToast={showToast} leads={leads} initialQuery={emailQuery} />}
         {tab === 'saved' && <SavedLeads leads={leads} deleteAccount={deleteAccount} setActiveId={setActiveId} setView={setView} showToast={showToast} saveAccount={saveAccount} user={user} />}
+        {tab === 'rfq' && <RFQReader user={user} showToast={showToast} />}
       </div>
     </>
   )

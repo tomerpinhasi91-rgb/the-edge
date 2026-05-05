@@ -14,6 +14,7 @@ import LeadView from './views/LeadView'
 import LeadRoomView from './views/LeadRoomView'
 import NewAccountView from './views/NewAccountView'
 import { loadProfile, exportAccountsCSV } from './lib/helpers'
+import MorningBriefing from './components/ui/MorningBriefing'
 
 const persistView = (v) => { try { localStorage.setItem('te_view', v) } catch (e) {} }
 const getPersistedView = () => { try { return localStorage.getItem('te_view') || 'leadroom' } catch (e) { return 'leadroom' } }
@@ -130,6 +131,7 @@ export default function App() {
     <div className="app">
       <Sidebar view={view} setView={setView} activeId={activeId} setActiveId={setActiveId} />
       <div className="main">
+        <MorningBriefing accounts={accounts} user={user} setView={setView} setActiveId={setActiveId} />
         <ErrorBoundary>
           {isNewUser && view !== 'new-account' && view !== 'leadroom' && view !== 'profile' && view !== 'admin'
             ? <EmptyState setView={setView} />

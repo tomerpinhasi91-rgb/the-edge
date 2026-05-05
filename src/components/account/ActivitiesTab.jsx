@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useApp } from '../../lib/context'
 import { uid } from '../../lib/supabase'
-import { callAIStream } from '../../lib/ai'
+import { callAI, callAIStream, extractJSON } from '../../lib/ai'
 import { isDemoUser, getDemoKey, DEMO_COACH, delay } from '../../lib/demo'
 import { loadProfile, buildRepContext } from '../../lib/helpers'
 import { ev } from '../../lib/analytics'
@@ -101,6 +101,20 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
   const [aiLabel, setAiLabel] = useState('')
   const [showFollowUpPrompt, setShowFollowUpPrompt] = useState(false) // #10
 
+  // ── Voice Logger state ───────────────────────────────────────────
+  const [showVoicePanel, setShowVoicePanel] = useState(false)
+  const [voiceRecording, setVoiceRecording] = useState(false)
+  const [voiceTranscript, setVoiceTranscript] = useState('')
+  const [voiceProcessing, setVoiceProcessing] = useState(false)
+  const [voiceResult, setVoiceResult] = useState(null)
+  const recognitionRef = useRef(null)
+
+  // ── Email Analyser state ─────────────────────────────────────────
+  const [showEmailPanel, setShowEmailPanel] = useState(false)
+  const [emailText, setEmailText] = useState('')
+  const [emailAnalysis, setEmailAnalysis] = useState(null)
+  const [emailLoading, setEmailLoading] = useState(false)
+
   const AI_ACTIONS = isLead ? LEAD_AI_ACTIONS : DEAL_AI_ACTIONS
   const save = (updates) => saveAccount({ ...account, ...updates })
   const setF = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
@@ -162,10 +176,342 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
     setAiLoading(false)
   }
 
+  // ── Voice Logger logic ────────────────────────────────────────────
+  const startRecording = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      showToast('Use Chrome or Safari for voice recording', 'error')
+      return
+    }
+    setVoiceTranscript('')
+    setVoiceResult(null)
+    const rec = new SpeechRecognition()
+    rec.continuous = true
+    rec.interimResults = true
+    rec.lang = 'en-AU'
+    rec.onresult = (e) => {
+      let full = ''
+      for (let i = 0; i < e.results.length; i++) {
+        full += e.results[i][0].transcript + ' '
+      }
+      setVoiceTranscript(full.trim())
+    }
+    rec.onerror = (e) => {
+      showToast('Voice error: ' + e.error, 'error')
+      setVoiceRecording(false)
+    }
+    recognitionRef.current = rec
+    rec.start()
+    setVoiceRecording(true)
+  }
+
+  const stopAndProcess = async () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    setVoiceRecording(false)
+    if (!voiceTranscript.trim()) return
+
+    setVoiceProcessing(true)
+
+    if (isDemoUser(user)) {
+      await delay(2000)
+      const demo = {
+        type: 'call',
+        title: 'Discovery call — Packaging Manager re: tray seal upgrade',
+        notes: 'Spoke with Lee at packaging plant. They are evaluating 3 vendors. Budget $800K approved. Throughput requirement 60 trays/min. MAP not required at launch but likely in 6 months.',
+        next: 'Send technical spec sheet and reference site list by Friday',
+        signals: [
+          { priority: 'urgent', title: 'Budget approved — $800K capex confirmed', body: 'Lee confirmed board-approved budget of $800K for the tray seal upgrade. Evaluation timeline is 6 weeks.', action: 'Get on the shortlist — send capability overview today.' }
+        ]
+      }
+      setVoiceResult(demo)
+      setForm({ type: demo.type, title: demo.title, date: new Date().toISOString().split('T')[0], notes: demo.notes, next: demo.next })
+      setVoiceProcessing(false)
+      return
+    }
+
+    const system = 'Extract a structured activity log from these spoken call notes. Return ONLY valid JSON: {"type":"call"|"meeting"|"email"|"note","title":string,"notes":string,"next":string,"signals":[{"priority":"urgent"|"watch"|"intel","title":string,"body":string,"action":string}]}'
+    try {
+      const raw = await callAI(system, [{ role: 'user', content: voiceTranscript }], 500, false, 'claude-haiku-4-5')
+      const parsed = extractJSON(raw)
+      if (parsed) {
+        setVoiceResult(parsed)
+        setForm({
+          type: parsed.type || 'call',
+          title: parsed.title || '',
+          date: new Date().toISOString().split('T')[0],
+          notes: parsed.notes || '',
+          next: parsed.next || '',
+        })
+      } else {
+        showToast('Could not structure transcript', 'error')
+      }
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+    setVoiceProcessing(false)
+  }
+
+  // ── Email Analyser logic ──────────────────────────────────────────
+  const analyseEmail = async () => {
+    if (!emailText.trim()) return
+    setEmailLoading(true)
+    setEmailAnalysis(null)
+
+    if (isDemoUser(user)) {
+      await delay(1800)
+      setEmailAnalysis({
+        sentiment: 'positive',
+        summary: 'Procurement manager Sarah Chen at Apex Protein confirmed they are moving forward with the tray seal evaluation. They have shortlisted 3 vendors and are requesting a formal proposal by end of month. Budget is confirmed at $950K.',
+        key_decisions: [
+          'Shortlist reduced to 3 vendors including us',
+          'Proposal deadline: end of month',
+        ],
+        open_questions: [
+          'What is the exact commissioning date required?',
+          'Will FAT be conducted at their site or supplier facility?',
+        ],
+        signals: [
+          { priority: 'urgent', title: 'Proposal deadline — end of month', body: 'Sarah confirmed the proposal is due by end of month. Late submissions will not be evaluated.', action: 'Submit proposal by 28th — start today.' }
+        ],
+        suggested_reply: 'Hi Sarah,\n\nThank you for confirming the shortlist — we are pleased to be included in the evaluation. We will have a comprehensive proposal to you by [date], covering technical compliance, commissioning timeline and a 5-year TCO model.\n\nCould you confirm the preferred commissioning date so we can include a project schedule? We would also like to propose a Factory Acceptance Test at our Melbourne facility prior to order — happy to discuss timing.\n\nLooking forward to the next steps.\n\nBest regards,\n[Your name]',
+        next_step: 'Prepare and submit proposal before end of month — prioritise commissioning timeline and FAT offer as differentiators.',
+      })
+      setEmailLoading(false)
+      return
+    }
+
+    const system = 'You are a B2B sales intelligence analyst. Analyse this email thread and return ONLY valid JSON: {"sentiment":"positive"|"neutral"|"negative"|"urgent","summary":string,"key_decisions":[string],"open_questions":[string],"signals":[{"priority":"urgent"|"watch"|"intel","title":string,"body":string,"action":string}],"suggested_reply":string,"next_step":string}'
+    try {
+      const raw = await callAI(system, [{ role: 'user', content: emailText }], 800)
+      const parsed = extractJSON(raw)
+      if (parsed) setEmailAnalysis(parsed)
+      else showToast('Could not parse email analysis', 'error')
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+    setEmailLoading(false)
+  }
+
+  const saveSignal = async (signal) => {
+    const signals = [...(account.signals || []), { id: uid(), ...signal }]
+    await saveAccount({ ...account, signals })
+    showToast('Signal saved', 'success')
+  }
+
+  const sentimentStyle = (s) => {
+    const map = {
+      positive: { bg: '#E1F5EE', color: '#0F6E56' },
+      neutral: { bg: '#F3F4F6', color: '#6b7280' },
+      negative: { bg: '#FEE2E2', color: '#B91C1C' },
+      urgent: { bg: '#FEF3C7', color: '#92400E' },
+    }
+    return map[s] || map.neutral
+  }
+
   const sorted = [...(account.activities || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 
   return (
     <div className="main-content">
+
+      {/* ── Voice Logger ── */}
+      <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: 12, overflow: 'hidden' }}>
+        <button
+          onClick={() => setShowVoicePanel(v => !v)}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}
+        >
+          <span>🎙️ Log by voice</span>
+          <span style={{ marginLeft: 'auto', color: '#9ca3af', fontSize: 12 }}>{showVoicePanel ? '▲' : '▼'}</span>
+        </button>
+
+        {showVoicePanel && (
+          <div style={{ padding: '0 16px 16px' }}>
+            {!voiceRecording && !voiceProcessing && !voiceResult && (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <button
+                  onClick={startRecording}
+                  style={{
+                    width: 72, height: 72, borderRadius: '50%',
+                    background: '#0F6E56', border: 'none', color: 'white',
+                    fontSize: 28, cursor: 'pointer', display: 'inline-flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 16px rgba(15,110,86,0.3)',
+                  }}
+                  title="Tap to start recording"
+                >
+                  🎙️
+                </button>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 10 }}>Tap to start recording</div>
+              </div>
+            )}
+
+            {voiceRecording && (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <button
+                  onClick={stopAndProcess}
+                  style={{
+                    width: 72, height: 72, borderRadius: '50%',
+                    background: '#EF4444', border: 'none', color: 'white',
+                    fontSize: 22, cursor: 'pointer', display: 'inline-flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                    boxShadow: '0 4px 16px rgba(239,68,68,0.4)',
+                  }}
+                >
+                  ⏹️
+                </button>
+                <div style={{ fontSize: 12, color: '#EF4444', marginTop: 10, fontWeight: 600 }}>Recording… tap to stop</div>
+                {voiceTranscript && (
+                  <div style={{ marginTop: 12, fontSize: 12, color: '#374151', background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px', textAlign: 'left', maxHeight: 100, overflowY: 'auto', lineHeight: 1.6 }}>
+                    {voiceTranscript}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {voiceProcessing && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 0', color: '#6b7280', fontSize: 13 }}>
+                <Spinner /> Structuring notes…
+              </div>
+            )}
+
+            {voiceResult && !voiceProcessing && (
+              <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#0F6E56', marginBottom: 8 }}>Extracted activity</div>
+                <div style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}><strong>Type:</strong> {voiceResult.type}</div>
+                <div style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}><strong>Title:</strong> {voiceResult.title}</div>
+                {voiceResult.notes && <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4, lineHeight: 1.5 }}>{voiceResult.notes}</div>}
+                {voiceResult.next && <div style={{ fontSize: 12, color: '#0F6E56', marginBottom: 8 }}>→ {voiceResult.next}</div>}
+                <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)} style={{ fontSize: 12 }}>
+                  Looks right? Open activity form →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Email Analyser ── */}
+      <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: 12, overflow: 'hidden' }}>
+        <button
+          onClick={() => setShowEmailPanel(v => !v)}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}
+        >
+          <span>📧 Analyse email</span>
+          <span style={{ marginLeft: 'auto', color: '#9ca3af', fontSize: 12 }}>{showEmailPanel ? '▲' : '▼'}</span>
+        </button>
+
+        {showEmailPanel && (
+          <div style={{ padding: '0 16px 16px' }}>
+            <textarea
+              className="form-input"
+              rows={6}
+              placeholder="Paste email thread here…"
+              value={emailText}
+              onChange={e => { setEmailText(e.target.value); setEmailAnalysis(null) }}
+              style={{ marginBottom: 10, fontSize: 12, lineHeight: 1.6 }}
+            />
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={analyseEmail}
+              disabled={!emailText.trim() || emailLoading}
+              style={{ marginBottom: 12 }}
+            >
+              {emailLoading ? <><Spinner /> Analysing…</> : 'Analyse'}
+            </button>
+
+            {emailAnalysis && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Sentiment */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{
+                    ...sentimentStyle(emailAnalysis.sentiment),
+                    borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+                  }}>
+                    {emailAnalysis.sentiment?.toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Summary */}
+                {emailAnalysis.summary && (
+                  <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.65 }}>{emailAnalysis.summary}</div>
+                )}
+
+                {/* Key decisions */}
+                {emailAnalysis.key_decisions?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Key decisions</div>
+                    {emailAnalysis.key_decisions.map((d, i) => (
+                      <div key={i} style={{ fontSize: 13, color: '#374151', display: 'flex', gap: 8, marginBottom: 4 }}>
+                        <span style={{ color: '#0F6E56' }}>✓</span> {d}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Open questions */}
+                {emailAnalysis.open_questions?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Open questions</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {emailAnalysis.open_questions.map((q, i) => (
+                        <span key={i} style={{ background: '#EFF6FF', color: '#1D4ED8', borderRadius: 6, padding: '3px 9px', fontSize: 12 }}>{q}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Signals */}
+                {emailAnalysis.signals?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Signals</div>
+                    {emailAnalysis.signals.map((s, i) => (
+                      <div key={i} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                          <div>
+                            <span className={`badge badge-${s.priority}`} style={{ marginRight: 8 }}>{s.priority}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</span>
+                            {s.body && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{s.body}</div>}
+                          </div>
+                          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => saveSignal(s)}>
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Suggested reply */}
+                {emailAnalysis.suggested_reply && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Suggested reply</div>
+                    <div className="ai-output" style={{ fontSize: 12, whiteSpace: 'pre-wrap', lineHeight: 1.6, position: 'relative' }}>
+                      {emailAnalysis.suggested_reply}
+                    </div>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: 11, marginTop: 6 }}
+                      onClick={() => navigator.clipboard.writeText(emailAnalysis.suggested_reply).then(() => showToast('Copied', 'success'))}
+                    >
+                      Copy reply
+                    </button>
+                  </div>
+                )}
+
+                {/* Next step */}
+                {emailAnalysis.next_step && (
+                  <div style={{ background: '#f0fdf7', border: '1px solid #9FE1CB', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#0F6E56', fontWeight: 500 }}>
+                    Next step: {emailAnalysis.next_step}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ── AI Activity Assistant ── */}
       <div className="ai-panel" style={{ marginBottom: 16 }}>
