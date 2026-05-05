@@ -87,7 +87,7 @@ function SeverityBadge({ severity }) {
   )
 }
 
-export default function RFQReader({ user, showToast, account }) {
+export default function RFQReader({ user, showToast, account, embedded = false }) {
   const [mode, setMode] = useState('upload') // 'upload' | 'paste'
   const [pasteText, setPasteText] = useState('')
   const [fileName, setFileName] = useState('')
@@ -179,10 +179,15 @@ export default function RFQReader({ user, showToast, account }) {
 
   return (
     <div>
-      <div style={{ fontSize: 17, fontWeight: 700, color: '#1f2937', marginBottom: 16 }}>
-        📄 RFQ / Tender Analyser
-        {account && <span style={{ fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>— {account.name}</span>}
-      </div>
+      {!embedded && (
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#1f2937', marginBottom: 16 }}>
+          📄 RFQ / Tender Analyser
+          {account && <span style={{ fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>— {account.name}</span>}
+        </div>
+      )}
+      {embedded && account && (
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>Analysing RFQ for <strong>{account.name}</strong></div>
+      )}
 
       {/* Mode toggle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>

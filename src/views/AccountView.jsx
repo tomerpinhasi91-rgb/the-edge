@@ -70,7 +70,6 @@ export default function AccountView({ account, setView }) {
     { key: 'intelligence', label: 'Intelligence' },
     { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
-    { key: 'rfq', label: '📄 RFQ' },
     { key: 'notes', label: 'Notes' },
     { key: 'coach', label: 'AI Coach' },
   ]
@@ -103,7 +102,6 @@ export default function AccountView({ account, setView }) {
       {tab === 'intelligence' && <IntelligenceTab account={account} />}
       {tab === 'activities' && <ActivitiesTab account={account} />}
       {tab === 'contacts' && <ContactsTab account={account} />}
-      {tab === 'rfq' && <div className="main-content"><RFQReader user={user} showToast={showToast} account={account} /></div>}
       {tab === 'notes' && <NotesTab account={account} />}
       {tab === 'coach' && <CoachTab account={account} />}
 

@@ -81,7 +81,6 @@ export default function LeadView({ lead, setView, setActiveId }) {
     { key: 'intelligence', label: 'Intelligence' },
     { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
-    { key: 'rfq', label: '📄 RFQ' },
     { key: 'notes', label: 'Notes' },
     { key: 'coach', label: 'AI Coach' },
   ]
@@ -110,7 +109,6 @@ export default function LeadView({ lead, setView, setActiveId }) {
       {tab === 'intelligence' && <LeadIntelligence lead={lead} save={save} user={user} showToast={showToast} />}
       {tab === 'activities' && <ActivitiesTab account={lead} isLead={true} onConvert={promote} />}
       {tab === 'contacts' && <LeadContacts lead={lead} save={save} showToast={showToast} />}
-      {tab === 'rfq' && <div className="main-content"><RFQReader user={user} showToast={showToast} account={lead} /></div>}
       {tab === 'notes' && <LeadNotes lead={lead} save={save} showToast={showToast} />}
       {tab === 'coach' && <LeadCoach lead={lead} save={save} user={user} showToast={showToast} />}
 

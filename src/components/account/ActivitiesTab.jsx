@@ -7,6 +7,7 @@ import { loadProfile, buildRepContext } from '../../lib/helpers'
 import { ev } from '../../lib/analytics'
 import Modal from '../ui/Modal'
 import Spinner from '../ui/Spinner'
+import RFQReader from '../shared/RFQReader'
 
 const TYPES = ['call', 'meeting', 'email', 'note', 'demo', 'proposal']
 const TYPE_ICONS = { call: '📞', meeting: '🤝', email: '✉️', note: '📝', demo: '💻', proposal: '📄' }
@@ -101,16 +102,13 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
   const [aiLabel, setAiLabel] = useState('')
   const [showFollowUpPrompt, setShowFollowUpPrompt] = useState(false) // #10
 
-  // ── Voice Logger state ───────────────────────────────────────────
-  const [showVoicePanel, setShowVoicePanel] = useState(false)
+  // ── Capture panel state (voice / email / rfq — one at a time) ────
+  const [activeCapture, setActiveCapture] = useState(null) // null | 'voice' | 'email' | 'rfq'
   const [voiceRecording, setVoiceRecording] = useState(false)
   const [voiceTranscript, setVoiceTranscript] = useState('')
   const [voiceProcessing, setVoiceProcessing] = useState(false)
   const [voiceResult, setVoiceResult] = useState(null)
   const recognitionRef = useRef(null)
-
-  // ── Email Analyser state ─────────────────────────────────────────
-  const [showEmailPanel, setShowEmailPanel] = useState(false)
   const [emailText, setEmailText] = useState('')
   const [emailAnalysis, setEmailAnalysis] = useState(null)
   const [emailLoading, setEmailLoading] = useState(false)
@@ -319,70 +317,84 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
 
   const sorted = [...(account.activities || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 
+  const toggleCapture = (panel) => setActiveCapture(v => v === panel ? null : panel)
+
   return (
     <div className="main-content">
 
-      {/* ── Voice Logger ── */}
-      <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: 12, overflow: 'hidden' }}>
-        <button
-          onClick={() => setShowVoicePanel(v => !v)}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}
-        >
-          <span>🎙️ Log by voice</span>
-          <span style={{ marginLeft: 'auto', color: '#9ca3af', fontSize: 12 }}>{showVoicePanel ? '▲' : '▼'}</span>
-        </button>
+      {/* ── AI Activity Assistant ── */}
+      <div className="ai-panel" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>AI Activity Assistant</div>
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
+          Generate content using this {isLead ? "lead's" : "deal's"} context and recent activity history.
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {AI_ACTIONS.map((action, i) => (
+            <button key={i} className="btn btn-secondary btn-sm" style={{ fontSize: 12 }} onClick={() => runAI(action)} disabled={aiLoading}>
+              {action.label}
+            </button>
+          ))}
+        </div>
 
-        {showVoicePanel && (
-          <div style={{ padding: '0 16px 16px' }}>
+        {aiLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, color: '#6b7280', fontSize: 13 }}>
+            <Spinner /> <span>Generating {aiLabel}...</span>
+          </div>
+        )}
+        {aiOutput && !aiLoading && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{aiLabel}</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => navigator.clipboard.writeText(aiOutput).then(() => showToast('Copied', 'success'))}>Copy</button>
+                <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => setAiOutput('')}>Clear</button>
+              </div>
+            </div>
+            <div className="ai-output" style={{ fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.65 }}>{aiOutput}</div>
+          </div>
+        )}
+
+        {/* ── Capture divider ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0 12px' }}>
+          <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Capture</span>
+          <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            className={`btn btn-sm ${activeCapture === 'voice' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ fontSize: 12 }}
+            onClick={() => toggleCapture('voice')}
+          >🎙️ Voice log</button>
+          <button
+            className={`btn btn-sm ${activeCapture === 'email' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ fontSize: 12 }}
+            onClick={() => toggleCapture('email')}
+          >📧 Analyse email</button>
+          <button
+            className={`btn btn-sm ${activeCapture === 'rfq' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ fontSize: 12 }}
+            onClick={() => toggleCapture('rfq')}
+          >📄 RFQ</button>
+        </div>
+
+        {/* ── Voice panel ── */}
+        {activeCapture === 'voice' && (
+          <div style={{ marginTop: 14, borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
             {!voiceRecording && !voiceProcessing && !voiceResult && (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <button
-                  onClick={startRecording}
-                  style={{
-                    width: 72, height: 72, borderRadius: '50%',
-                    background: '#0F6E56', border: 'none', color: 'white',
-                    fontSize: 28, cursor: 'pointer', display: 'inline-flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 4px 16px rgba(15,110,86,0.3)',
-                  }}
-                  title="Tap to start recording"
-                >
-                  🎙️
-                </button>
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 10 }}>Tap to start recording</div>
+              <div style={{ textAlign: 'center', padding: '12px 0' }}>
+                <button onClick={startRecording} style={{ width: 64, height: 64, borderRadius: '50%', background: '#0F6E56', border: 'none', color: 'white', fontSize: 26, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(15,110,86,0.3)' }} title="Tap to start recording">🎙️</button>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>Tap to start — speak your call debrief out loud</div>
               </div>
             )}
-
             {voiceRecording && (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <button
-                  onClick={stopAndProcess}
-                  style={{
-                    width: 72, height: 72, borderRadius: '50%',
-                    background: '#EF4444', border: 'none', color: 'white',
-                    fontSize: 22, cursor: 'pointer', display: 'inline-flex',
-                    alignItems: 'center', justifyContent: 'center',
-                    animation: 'pulse 1.5s ease-in-out infinite',
-                    boxShadow: '0 4px 16px rgba(239,68,68,0.4)',
-                  }}
-                >
-                  ⏹️
-                </button>
-                <div style={{ fontSize: 12, color: '#EF4444', marginTop: 10, fontWeight: 600 }}>Recording… tap to stop</div>
-                {voiceTranscript && (
-                  <div style={{ marginTop: 12, fontSize: 12, color: '#374151', background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px', textAlign: 'left', maxHeight: 100, overflowY: 'auto', lineHeight: 1.6 }}>
-                    {voiceTranscript}
-                  </div>
-                )}
+              <div style={{ textAlign: 'center', padding: '12px 0' }}>
+                <button onClick={stopAndProcess} style={{ width: 64, height: 64, borderRadius: '50%', background: '#EF4444', border: 'none', color: 'white', fontSize: 20, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', animation: 'pulse 1.5s ease-in-out infinite', boxShadow: '0 4px 16px rgba(239,68,68,0.4)' }}>⏹️</button>
+                <div style={{ fontSize: 12, color: '#EF4444', marginTop: 8, fontWeight: 600 }}>Recording… tap to stop</div>
+                {voiceTranscript && <div style={{ marginTop: 10, fontSize: 12, color: '#374151', background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px', textAlign: 'left', maxHeight: 80, overflowY: 'auto', lineHeight: 1.6 }}>{voiceTranscript}</div>}
               </div>
             )}
-
-            {voiceProcessing && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 0', color: '#6b7280', fontSize: 13 }}>
-                <Spinner /> Structuring notes…
-              </div>
-            )}
-
+            {voiceProcessing && <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', color: '#6b7280', fontSize: 13 }}><Spinner /> Structuring notes…</div>}
             {voiceResult && !voiceProcessing && (
               <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#0F6E56', marginBottom: 8 }}>Extracted activity</div>
@@ -390,62 +402,32 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
                 <div style={{ fontSize: 13, color: '#374151', marginBottom: 4 }}><strong>Title:</strong> {voiceResult.title}</div>
                 {voiceResult.notes && <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4, lineHeight: 1.5 }}>{voiceResult.notes}</div>}
                 {voiceResult.next && <div style={{ fontSize: 12, color: '#0F6E56', marginBottom: 8 }}>→ {voiceResult.next}</div>}
-                <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)} style={{ fontSize: 12 }}>
-                  Looks right? Open activity form →
-                </button>
+                <button className="btn btn-primary btn-sm" onClick={() => { setShowForm(true); toggleCapture('voice') }} style={{ fontSize: 12 }}>Open activity form →</button>
               </div>
             )}
           </div>
         )}
-      </div>
 
-      {/* ── Email Analyser ── */}
-      <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 12, marginBottom: 12, overflow: 'hidden' }}>
-        <button
-          onClick={() => setShowEmailPanel(v => !v)}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}
-        >
-          <span>📧 Analyse email</span>
-          <span style={{ marginLeft: 'auto', color: '#9ca3af', fontSize: 12 }}>{showEmailPanel ? '▲' : '▼'}</span>
-        </button>
-
-        {showEmailPanel && (
-          <div style={{ padding: '0 16px 16px' }}>
+        {/* ── Email panel ── */}
+        {activeCapture === 'email' && (
+          <div style={{ marginTop: 14, borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
             <textarea
               className="form-input"
-              rows={6}
+              rows={5}
               placeholder="Paste email thread here…"
               value={emailText}
               onChange={e => { setEmailText(e.target.value); setEmailAnalysis(null) }}
               style={{ marginBottom: 10, fontSize: 12, lineHeight: 1.6 }}
             />
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={analyseEmail}
-              disabled={!emailText.trim() || emailLoading}
-              style={{ marginBottom: 12 }}
-            >
+            <button className="btn btn-primary btn-sm" onClick={analyseEmail} disabled={!emailText.trim() || emailLoading} style={{ marginBottom: 12 }}>
               {emailLoading ? <><Spinner /> Analysing…</> : 'Analyse'}
             </button>
-
             {emailAnalysis && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Sentiment */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{
-                    ...sentimentStyle(emailAnalysis.sentiment),
-                    borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700,
-                  }}>
-                    {emailAnalysis.sentiment?.toUpperCase()}
-                  </span>
+                  <span style={{ ...sentimentStyle(emailAnalysis.sentiment), borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>{emailAnalysis.sentiment?.toUpperCase()}</span>
                 </div>
-
-                {/* Summary */}
-                {emailAnalysis.summary && (
-                  <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.65 }}>{emailAnalysis.summary}</div>
-                )}
-
-                {/* Key phrases */}
+                {emailAnalysis.summary && <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.65 }}>{emailAnalysis.summary}</div>}
                 {emailAnalysis.key_phrases?.length > 0 && (
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Key phrases</div>
@@ -453,30 +435,20 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
                       {emailAnalysis.key_phrases.map((phrase, i) => (
                         <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#FAFAFA', border: '1px solid #e5e7eb', borderLeft: '3px solid #0F6E56', borderRadius: 6, padding: '7px 10px' }}>
                           <span style={{ flex: 1, fontSize: 12, color: '#374151', fontStyle: 'italic', lineHeight: 1.55 }}>{phrase}</span>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(phrase).then(() => showToast('Copied', 'success'))}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#9ca3af', flexShrink: 0, padding: '0 2px' }}
-                            title="Copy phrase"
-                          >⧉</button>
+                          <button onClick={() => navigator.clipboard.writeText(phrase).then(() => showToast('Copied', 'success'))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#9ca3af', flexShrink: 0, padding: '0 2px' }} title="Copy phrase">⧉</button>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-
-                {/* Key decisions */}
                 {emailAnalysis.key_decisions?.length > 0 && (
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Key decisions</div>
                     {emailAnalysis.key_decisions.map((d, i) => (
-                      <div key={i} style={{ fontSize: 13, color: '#374151', display: 'flex', gap: 8, marginBottom: 4 }}>
-                        <span style={{ color: '#0F6E56' }}>✓</span> {d}
-                      </div>
+                      <div key={i} style={{ fontSize: 13, color: '#374151', display: 'flex', gap: 8, marginBottom: 4 }}><span style={{ color: '#0F6E56' }}>✓</span> {d}</div>
                     ))}
                   </div>
                 )}
-
-                {/* Open questions */}
                 {emailAnalysis.open_questions?.length > 0 && (
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Open questions</div>
@@ -487,8 +459,6 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
                     </div>
                   </div>
                 )}
-
-                {/* Signals */}
                 {emailAnalysis.signals?.length > 0 && (
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Signals</div>
@@ -500,33 +470,19 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
                             <span style={{ fontSize: 13, fontWeight: 600 }}>{s.title}</span>
                             {s.body && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{s.body}</div>}
                           </div>
-                          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => saveSignal(s)}>
-                            Save
-                          </button>
+                          <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, flexShrink: 0 }} onClick={() => saveSignal(s)}>Save</button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-
-                {/* Suggested reply */}
                 {emailAnalysis.suggested_reply && (
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Suggested reply</div>
-                    <div className="ai-output" style={{ fontSize: 12, whiteSpace: 'pre-wrap', lineHeight: 1.6, position: 'relative' }}>
-                      {emailAnalysis.suggested_reply}
-                    </div>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ fontSize: 11, marginTop: 6 }}
-                      onClick={() => navigator.clipboard.writeText(emailAnalysis.suggested_reply).then(() => showToast('Copied', 'success'))}
-                    >
-                      Copy reply
-                    </button>
+                    <div className="ai-output" style={{ fontSize: 12, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{emailAnalysis.suggested_reply}</div>
+                    <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, marginTop: 6 }} onClick={() => navigator.clipboard.writeText(emailAnalysis.suggested_reply).then(() => showToast('Copied', 'success'))}>Copy reply</button>
                   </div>
                 )}
-
-                {/* Next step */}
                 {emailAnalysis.next_step && (
                   <div style={{ background: '#f0fdf7', border: '1px solid #9FE1CB', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#0F6E56', fontWeight: 500 }}>
                     Next step: {emailAnalysis.next_step}
@@ -536,50 +492,11 @@ export default function ActivitiesTab({ account, isLead = false, onConvert }) {
             )}
           </div>
         )}
-      </div>
 
-      {/* ── AI Activity Assistant ── */}
-      <div className="ai-panel" style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>AI Activity Assistant</div>
-        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
-          Generate content using this deal's context and recent activity history.
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {AI_ACTIONS.map((action, i) => (
-            <button
-              key={i}
-              className="btn btn-secondary btn-sm"
-              style={{ fontSize: 12 }}
-              onClick={() => runAI(action)}
-              disabled={aiLoading}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
-
-        {aiLoading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, color: '#6b7280', fontSize: 13 }}>
-            <Spinner /> <span>Generating {aiLabel}...</span>
-          </div>
-        )}
-
-        {aiOutput && !aiLoading && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{aiLabel}</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: 10 }}
-                  onClick={() => navigator.clipboard.writeText(aiOutput).then(() => showToast('Copied', 'success'))}
-                >
-                  Copy
-                </button>
-                <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => setAiOutput('')}>Clear</button>
-              </div>
-            </div>
-            <div className="ai-output" style={{ fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.65 }}>{aiOutput}</div>
+        {/* ── RFQ panel ── */}
+        {activeCapture === 'rfq' && (
+          <div style={{ marginTop: 14, borderTop: '1px solid #e5e7eb', paddingTop: 4 }}>
+            <RFQReader user={user} showToast={showToast} account={account} embedded />
           </div>
         )}
       </div>
