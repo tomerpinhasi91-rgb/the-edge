@@ -1,6 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useApp } from '../../lib/context'
 import { callAI, extractJSON } from '../../lib/ai'
 import { isDemoUser, delay } from '../../lib/demo'
+import { uid } from '../../lib/supabase'
 import Spinner from '../ui/Spinner'
 
 const DEMO_ANALYSIS = {
@@ -56,22 +58,9 @@ const DEMO_ANALYSIS = {
   ],
 }
 
-const SYSTEM_PROMPT = `You are a senior B2B capital equipment sales strategist. Analyse this RFQ/tender document and return ONLY valid JSON.
+const DEMO_EMAIL = 'Subject: Response to Woolworths Fresh Protein Tray Sealing Line RFQ\n\nDear Woolworths Fresh Food Procurement Team,\n\nThank you for the opportunity to respond to your Tray Sealing Line RFQ. We are well-positioned to meet your requirements, including the 80 trays/min throughput target and full MAP capability with residual O2 <0.5%.\n\nOur primary focus in this submission will be commissioning certainty. We have completed similar installations at Baiada and Hilton Food on comparable timelines and can commit to your June 2026 go-live. To address the MAP tooling lead time risk, we propose initiating tooling manufacture on receipt of a Letter of Intent — this eliminates schedule risk without requiring full contract execution.\n\nWe would welcome the opportunity to discuss the evaluation process and, if possible, arrange a Factory Acceptance Test at our Melbourne facility prior to contract signature — at no cost to Woolworths — to validate throughput and MAP performance against your specification.\n\nCould we schedule a 30-minute call this week to clarify two or three points before we commit to the full proposal?\n\nKind regards,\n[Your name]\n[Title] | [Company]'
 
-Schema:
-{
-  "title": "document title or best guess",
-  "buyer": "company name",
-  "deadline": "submission deadline if found",
-  "budget": "budget range if mentioned",
-  "requirements": [{ "item": string, "critical": boolean, "note": string }],
-  "evaluation_criteria": [string],
-  "risks": [{ "risk": string, "severity": "high"|"medium"|"low", "mitigation": string }],
-  "win_strategy": "3-4 sentence strategic summary of how to win this",
-  "key_questions": ["3-4 clarifying questions to ask the buyer"],
-  "response_structure": ["recommended sections for the response document in order"],
-  "red_flags": [string]
-}`
+const SYSTEM_PROMPT = 'You are a senior B2B capital equipment sales strategist. Analyse this RFQ/tender document and return ONLY valid JSON.\n\nSchema:\n{\n  "title": "document title or best guess",\n  "buyer": "company name",\n  "deadline": "submission deadline if found",\n  "budget": "budget range if mentioned",\n  "requirements": [{ "item": string, "critical": boolean, "note": string }],\n  "evaluation_criteria": [string],\n  "risks": [{ "risk": string, "severity": "high"|"medium"|"low", "mitigation": string }],\n  "win_strategy": "3-4 sentence strategic summary of how to win this",\n  "key_questions": ["3-4 clarifying questions to ask the buyer"],\n  "response_structure": ["recommended sections for the response document in order"],\n  "red_flags": [string]\n}'
 
 function SeverityBadge({ severity }) {
   const map = {
@@ -87,86 +76,151 @@ function SeverityBadge({ severity }) {
   )
 }
 
+function CollapsibleSection({ title, badge, open, onToggle, children }) {
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+      <button
+        onClick={onToggle}
+        style={{ width: '100%', background: open ? '#f9fafb' : 'white', border: 'none', padding: '11px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#374151' }}
+      >
+        <span>
+          {title}
+          {badge !== undefined && (
+            <span style={{ background: '#e5e7eb', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 600, marginLeft: 7, color: '#374151' }}>{badge}</span>
+          )}
+        </span>
+        <span style={{ color: '#9ca3af', fontSize: 11 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div style={{ padding: '14px', borderTop: '1px solid #f3f4f6' }}>{children}</div>}
+    </div>
+  )
+}
+
 export default function RFQReader({ user, showToast, account, embedded = false, onSaveActivity }) {
-  const [mode, setMode] = useState('upload') // 'upload' | 'paste'
+  const { dealAccounts, saveAccount } = useApp()
+
+  // ── Upload / paste state ────────────────────────────────────────
+  const [mode, setMode] = useState('upload')
   const [pasteText, setPasteText] = useState('')
   const [fileName, setFileName] = useState('')
-  const [fileContent, setFileContent] = useState(null) // { type: 'text'|'pdf', data: string }
+  const [fileContent, setFileContent] = useState(null)
   const [loading, setLoading] = useState(false)
   const [analysis, setAnalysis] = useState(null)
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
 
+  // ── Draft email state ───────────────────────────────────────────
+  const [draftEmail, setDraftEmail] = useState('')
+  const [draftEmailLoading, setDraftEmailLoading] = useState(false)
+  const [emailCopied, setEmailCopied] = useState(false)
+
+  // ── Save to deal state ──────────────────────────────────────────
+  const [openSaveSection, setOpenSaveSection] = useState(null)
+  const [selectedSignalIdxs, setSelectedSignalIdxs] = useState(new Set())
+  const [savingSignals, setSavingSignals] = useState(false)
+  const [activitySaved, setActivitySaved] = useState(false)
+  const [savingActivity, setSavingActivity] = useState(false)
+  const [notesSaved, setNotesSaved] = useState(false)
+  const [savingNotes, setSavingNotes] = useState(false)
+
+  // ── Checklist + call prep state ─────────────────────────────────
+  const [checklistSaving, setChecklistSaving] = useState(false)
+  const [checklistSaved, setChecklistSaved] = useState(false)
+  const [callPrepCopied, setCallPrepCopied] = useState(false)
+
+  // ── Deal account selector (when no account prop) ─────────────────
+  const [selectedDealId, setSelectedDealId] = useState('')
+
+  // Resolve which account to save to
+  const targetAccount = account || dealAccounts.find(a => a.id === selectedDealId) || null
+
+  // Pre-select all signals when analysis loads
+  useEffect(() => {
+    if (!analysis) return
+    const count =
+      (analysis.risks?.filter(r => r.severity === 'high').length || 0) +
+      (analysis.risks?.filter(r => r.severity === 'medium').length || 0) +
+      (analysis.red_flags?.length || 0)
+    setSelectedSignalIdxs(new Set(Array.from({ length: count }, (_, i) => i)))
+    setActivitySaved(false)
+    setNotesSaved(false)
+    setChecklistSaved(false)
+    setDraftEmail('')
+  }, [analysis])
+
+  // Build signal candidates from risks + red flags
+  const signalCandidates = analysis ? [
+    ...(analysis.risks?.filter(r => r.severity === 'high').map(r => ({
+      priority: 'urgent',
+      title: r.risk,
+      body: 'Mitigation: ' + r.mitigation,
+      action: 'Address immediately',
+    })) || []),
+    ...(analysis.risks?.filter(r => r.severity === 'medium').map(r => ({
+      priority: 'watch',
+      title: r.risk,
+      body: 'Mitigation: ' + r.mitigation,
+      action: 'Monitor and mitigate',
+    })) || []),
+    ...(analysis.red_flags?.map(f => ({
+      priority: 'watch',
+      title: f,
+      body: '',
+      action: 'Clarify before submission',
+    })) || []),
+  ] : []
+
   const hasContent = mode === 'paste' ? pasteText.trim().length > 20 : !!fileContent
 
+  // ── File processing ─────────────────────────────────────────────
   const processFile = (file) => {
     if (!file) return
     const name = file.name
     setFileName(name)
-
     const isPdf = file.type === 'application/pdf' || name.endsWith('.pdf')
-
     if (isPdf) {
       const reader = new FileReader()
       reader.onload = (e) => {
-        const dataUrl = e.target.result
-        // strip the data URL prefix
-        const base64 = dataUrl.replace(/^data:application\/pdf;base64,/, '')
+        const base64 = e.target.result.replace(/^data:application\/pdf;base64,/, '')
         setFileContent({ type: 'pdf', data: base64 })
       }
       reader.readAsDataURL(file)
     } else {
       const reader = new FileReader()
-      reader.onload = (e) => {
-        setFileContent({ type: 'text', data: e.target.result })
-      }
+      reader.onload = (e) => setFileContent({ type: 'text', data: e.target.result })
       reader.readAsText(file)
     }
   }
 
-  const handleFileChange = (e) => {
-    processFile(e.target.files?.[0])
-  }
+  const handleFileChange = (e) => processFile(e.target.files?.[0])
+  const handleDrop = (e) => { e.preventDefault(); setDragOver(false); processFile(e.dataTransfer.files?.[0]) }
 
-  const handleDrop = (e) => {
-    e.preventDefault()
-    setDragOver(false)
-    processFile(e.dataTransfer.files?.[0])
-  }
-
+  // ── Analyse ─────────────────────────────────────────────────────
   const analyse = async () => {
     setLoading(true)
     setAnalysis(null)
-
     if (isDemoUser(user)) {
       await delay(2200)
       setAnalysis(DEMO_ANALYSIS)
       setLoading(false)
       return
     }
-
     try {
-      // Inject account context into system prompt when analysing from a lead/deal
       const accountCtx = account
-        ? `\n\nSELLER CONTEXT: You are helping a sales rep at a company selling to ${account.name}${account.industry ? ` (${account.industry})` : ''}. Tailor win strategy and questions to this specific account.`
+        ? ('\n\nSELLER CONTEXT: You are helping a sales rep selling to ' + account.name + (account.industry ? ' (' + account.industry + ')' : '') + '. Tailor win strategy and questions to this specific account.')
         : ''
       const systemWithCtx = SYSTEM_PROMPT + accountCtx
-
       let messages
       if (mode === 'paste') {
         messages = [{ role: 'user', content: pasteText }]
       } else if (fileContent?.type === 'pdf') {
-        messages = [{
-          role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: fileContent.data } },
-            { type: 'text', text: 'Analyse this RFQ document.' }
-          ]
-        }]
+        messages = [{ role: 'user', content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: fileContent.data } },
+          { type: 'text', text: 'Analyse this RFQ document.' }
+        ]}]
       } else {
         messages = [{ role: 'user', content: fileContent?.data || '' }]
       }
-
       const raw = await callAI(systemWithCtx, messages, 2000)
       const parsed = extractJSON(raw)
       if (!parsed) throw new Error('Could not parse analysis response')
@@ -177,12 +231,125 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
     setLoading(false)
   }
 
+  // ── Draft email ─────────────────────────────────────────────────
+  const generateDraftEmail = async () => {
+    setDraftEmailLoading(true)
+    setDraftEmail('')
+    if (isDemoUser(user)) {
+      await delay(2000)
+      setDraftEmail(DEMO_EMAIL)
+      setDraftEmailLoading(false)
+      return
+    }
+    try {
+      const prompt = 'Write a professional first-response covering email to ' + (analysis.buyer || 'the buyer') + ' regarding their RFQ: "' + (analysis.title || 'RFQ') + '".' +
+        '\n\nWin strategy to reflect: ' + analysis.win_strategy +
+        '\n\nTop risks to address: ' + (analysis.risks?.slice(0, 2).map(r => r.risk).join('; ') || 'none listed') +
+        '\n\nWrite a Subject line then the email body. 3-4 short paragraphs. Professional, confident, specific. End with a proposed next step.'
+      const system = 'You are a senior B2B sales professional writing a first-response covering email to an RFQ. Be concise, professional, and reference the win strategy positioning. Output Subject line first, then the full email body.'
+      const result = await callAI(system, [{ role: 'user', content: prompt }], 600)
+      setDraftEmail(result)
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+    setDraftEmailLoading(false)
+  }
+
+  // ── Copy call prep ───────────────────────────────────────────────
+  const copyCallPrep = () => {
+    const lines = ['Call Prep — ' + (analysis.title || 'RFQ'), '']
+    ;(analysis.key_questions || []).forEach((q, i) => lines.push((i + 1) + '. ' + q))
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCallPrepCopied(true)
+      setTimeout(() => setCallPrepCopied(false), 2000)
+    })
+  }
+
+  // ── Create checklist ─────────────────────────────────────────────
+  const createChecklist = async () => {
+    if (!targetAccount) return showToast('Select a deal account first', 'error')
+    setChecklistSaving(true)
+    const newItems = (analysis.response_structure || []).map(s => ({ id: uid(), text: s, done: false }))
+    const existing = targetAccount.checklist || []
+    await saveAccount({ ...targetAccount, checklist: [...existing, ...newItems] })
+    setChecklistSaving(false)
+    setChecklistSaved(true)
+    showToast(newItems.length + ' checklist items saved to ' + targetAccount.name, 'success')
+  }
+
+  // ── Save signals ─────────────────────────────────────────────────
+  const saveSelectedSignals = async () => {
+    if (!targetAccount) return showToast('Select a deal account first', 'error')
+    if (selectedSignalIdxs.size === 0) return showToast('Select at least one signal', 'error')
+    setSavingSignals(true)
+    const toSave = signalCandidates
+      .filter((_, i) => selectedSignalIdxs.has(i))
+      .map(s => ({ id: uid(), ...s, date: new Date().toISOString().split('T')[0], source: 'RFQ Analysis' }))
+    const signals = [...(targetAccount.signals || []), ...toSave]
+    await saveAccount({ ...targetAccount, signals })
+    setSavingSignals(false)
+    showToast(toSave.length + ' signal(s) saved to ' + targetAccount.name, 'success')
+  }
+
+  // ── Log activity ─────────────────────────────────────────────────
+  const logActivity = async () => {
+    if (!targetAccount) return showToast('Select a deal account first', 'error')
+    setSavingActivity(true)
+    const notesLines = [
+      analysis.budget ? 'Budget: ' + analysis.budget : '',
+      analysis.deadline ? 'Deadline: ' + analysis.deadline : '',
+      '',
+      analysis.win_strategy ? 'Win strategy: ' + analysis.win_strategy : '',
+    ].filter((l, i) => i < 2 ? l : true)
+    const entry = {
+      id: uid(),
+      type: 'note',
+      title: 'RFQ received — ' + (analysis.buyer || targetAccount.name),
+      date: new Date().toISOString().split('T')[0],
+      notes: notesLines.join('\n'),
+      next: analysis.key_questions?.[0] || '',
+    }
+    const activities = [...(targetAccount.activities || []), entry]
+    await saveAccount({ ...targetAccount, activities })
+    setSavingActivity(false)
+    setActivitySaved(true)
+    showToast('Activity logged to ' + targetAccount.name, 'success')
+  }
+
+  // ── Save to notes ────────────────────────────────────────────────
+  const saveToNotes = async () => {
+    if (!targetAccount) return showToast('Select a deal account first', 'error')
+    setSavingNotes(true)
+    const lines = [
+      '=== RFQ Analysis — ' + (analysis.title || 'RFQ') + ' ===',
+      '',
+      'WIN STRATEGY',
+      analysis.win_strategy || '',
+      '',
+      'RED FLAGS',
+      ...(analysis.red_flags || []).map(f => '• ' + f),
+    ]
+    const newNotes = lines.join('\n')
+    const existing = targetAccount.notes || ''
+    await saveAccount({ ...targetAccount, notes: existing ? existing + '\n\n---\n\n' + newNotes : newNotes })
+    setSavingNotes(false)
+    setNotesSaved(true)
+    showToast('Saved to ' + targetAccount.name + ' notes', 'success')
+  }
+
+  const toggleSection = (key) => setOpenSaveSection(prev => prev === key ? null : key)
+  const toggleSignal = (i) => setSelectedSignalIdxs(prev => {
+    const next = new Set(prev)
+    next.has(i) ? next.delete(i) : next.add(i)
+    return next
+  })
+
   return (
     <div>
       {!embedded && (
         <div style={{ fontSize: 17, fontWeight: 700, color: '#1f2937', marginBottom: 16 }}>
           📄 RFQ / Tender Analyser
-          {account && <span style={{ fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>— {account.name}</span>}
+          {account && <span style={{ fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>{'— ' + account.name}</span>}
         </div>
       )}
       {embedded && account && (
@@ -194,7 +361,7 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
         {[{ key: 'upload', label: 'Upload file' }, { key: 'paste', label: 'Paste text' }].map(m => (
           <button
             key={m.key}
-            className={`btn btn-sm ${mode === m.key ? 'btn-primary' : 'btn-secondary'}`}
+            className={'btn btn-sm ' + (mode === m.key ? 'btn-primary' : 'btn-secondary')}
             onClick={() => { setMode(m.key); setAnalysis(null); setFileContent(null); setFileName('') }}
           >
             {m.label}
@@ -210,23 +377,13 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           style={{
-            border: `2px dashed ${dragOver ? '#0F6E56' : '#d1d5db'}`,
-            borderRadius: 12,
-            padding: '32px 20px',
-            textAlign: 'center',
-            cursor: 'pointer',
-            background: dragOver ? '#f0fdf7' : '#fafafa',
-            transition: 'all 0.15s',
-            marginBottom: 16,
+            border: '2px dashed ' + (dragOver ? '#0F6E56' : '#d1d5db'),
+            borderRadius: 12, padding: '32px 20px', textAlign: 'center',
+            cursor: 'pointer', background: dragOver ? '#f0fdf7' : '#fafafa',
+            transition: 'all 0.15s', marginBottom: 16,
           }}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.txt,.docx"
-            style={{ display: 'none' }}
-            onChange={handleFileChange}
-          />
+          <input ref={fileInputRef} type="file" accept=".pdf,.txt,.docx" style={{ display: 'none' }} onChange={handleFileChange} />
           {fileName ? (
             <div>
               <div style={{ fontSize: 24, marginBottom: 8 }}>📎</div>
@@ -256,12 +413,7 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
       )}
 
       {/* Analyse button */}
-      <button
-        className="btn btn-primary"
-        onClick={analyse}
-        disabled={!hasContent || loading}
-        style={{ marginBottom: 24 }}
-      >
+      <button className="btn btn-primary" onClick={analyse} disabled={!hasContent || loading} style={{ marginBottom: 24 }}>
         {loading ? <><Spinner /> Analysing document…</> : '🔍 Analyse RFQ'}
       </button>
 
@@ -273,18 +425,16 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
           <div className="card">
             <div style={{ fontSize: 18, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>{analysis.title}</div>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: '#6b7280' }}>
-              {analysis.buyer && <span>🏢 {analysis.buyer}</span>}
-              {analysis.deadline && <span>📅 {analysis.deadline}</span>}
-              {analysis.budget && <span>💰 {analysis.budget}</span>}
+              {analysis.buyer && <span>{'🏢 ' + analysis.buyer}</span>}
+              {analysis.deadline && <span>{'📅 ' + analysis.deadline}</span>}
+              {analysis.budget && <span>{'💰 ' + analysis.budget}</span>}
             </div>
           </div>
 
           {/* Win strategy */}
           {analysis.win_strategy && (
             <div style={{ background: '#f0fdf7', border: '1px solid #9FE1CB', borderRadius: 12, padding: '14px 18px' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                Win Strategy
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#0F6E56', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Win Strategy</div>
               <div style={{ fontSize: 13, color: '#1f2937', lineHeight: 1.65 }}>{analysis.win_strategy}</div>
             </div>
           )}
@@ -304,13 +454,7 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
                   </thead>
                   <tbody>
                     {analysis.requirements.map((r, i) => (
-                      <tr
-                        key={i}
-                        style={{
-                          borderBottom: '1px solid #f3f4f6',
-                          background: r.critical ? '#FFF5F5' : 'transparent',
-                        }}
-                      >
+                      <tr key={i} style={{ borderBottom: '1px solid #f3f4f6', background: r.critical ? '#FFF5F5' : 'transparent' }}>
                         <td style={{ padding: '8px 10px', color: r.critical ? '#B91C1C' : '#374151', fontWeight: r.critical ? 600 : 400 }}>
                           {r.critical && '⚠️ '}{r.item}
                         </td>
@@ -335,15 +479,12 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
               <div className="card-title" style={{ marginBottom: 12 }}>Risks</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {analysis.risks.map((r, i) => (
-                  <div key={i} style={{
-                    borderLeft: `3px solid ${r.severity === 'high' ? '#EF4444' : r.severity === 'medium' ? '#F59E0B' : '#9ca3af'}`,
-                    paddingLeft: 12,
-                  }}>
+                  <div key={i} style={{ borderLeft: '3px solid ' + (r.severity === 'high' ? '#EF4444' : r.severity === 'medium' ? '#F59E0B' : '#9ca3af'), paddingLeft: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <SeverityBadge severity={r.severity} />
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2937' }}>{r.risk}</span>
                     </div>
-                    <div style={{ fontSize: 12, color: '#0F6E56' }}>Mitigation: {r.mitigation}</div>
+                    <div style={{ fontSize: 12, color: '#0F6E56' }}>{'Mitigation: ' + r.mitigation}</div>
                   </div>
                 ))}
               </div>
@@ -353,11 +494,20 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
           {/* Key questions */}
           {analysis.key_questions?.length > 0 && (
             <div className="card">
-              <div className="card-title" style={{ marginBottom: 10 }}>Key Questions to Ask</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div className="card-title" style={{ marginBottom: 0 }}>Key Questions to Ask</div>
+                <button
+                  className={'btn btn-sm ' + (callPrepCopied ? 'btn-primary' : 'btn-secondary')}
+                  style={{ fontSize: 11 }}
+                  onClick={copyCallPrep}
+                >
+                  {callPrepCopied ? '✓ Copied!' : '📋 Copy call prep'}
+                </button>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {analysis.key_questions.map((q, i) => (
                   <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ color: '#0F6E56', fontWeight: 700, flexShrink: 0 }}>Q{i + 1}.</span>
+                    <span style={{ color: '#0F6E56', fontWeight: 700, flexShrink: 0 }}>{'Q' + (i + 1) + '.'}</span>
                     <span style={{ fontSize: 13, color: '#374151' }}>{q}</span>
                   </div>
                 ))}
@@ -368,15 +518,23 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
           {/* Response structure */}
           {analysis.response_structure?.length > 0 && (
             <div className="card">
-              <div className="card-title" style={{ marginBottom: 10 }}>Recommended Response Structure</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div className="card-title" style={{ marginBottom: 0 }}>Recommended Response Structure</div>
+                <button
+                  className={'btn btn-sm ' + (checklistSaved ? 'btn-primary' : 'btn-secondary')}
+                  style={{ fontSize: 11 }}
+                  onClick={createChecklist}
+                  disabled={checklistSaving || (checklistSaved && !targetAccount)}
+                  title={!targetAccount ? 'Select a deal account below to save checklist' : ''}
+                >
+                  {checklistSaving ? <><Spinner /> Saving…</> : checklistSaved ? '✓ Checklist saved' : '✅ Create checklist'}
+                </button>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {analysis.response_structure.map((s, i) => (
                   <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#374151' }}>
-                    <span style={{ color: '#9ca3af', flexShrink: 0, fontFamily: 'monospace' }}>{String(i + 1).padStart(2, '0')}.</span>
-                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
-                      <input type="checkbox" style={{ marginTop: 2, accentColor: '#0F6E56', flexShrink: 0 }} />
-                      {s}
-                    </label>
+                    <span style={{ color: '#9ca3af', flexShrink: 0, fontFamily: 'monospace' }}>{String(i + 1).padStart(2, '0') + '.'}</span>
+                    {s}
                   </div>
                 ))}
               </div>
@@ -400,9 +558,7 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
           {/* Red flags */}
           {analysis.red_flags?.length > 0 && (
             <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 12, padding: '14px 18px' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-                🚩 Red Flags
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#B91C1C', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>🚩 Red Flags</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {analysis.red_flags.map((f, i) => (
                   <div key={i} style={{ fontSize: 13, color: '#B91C1C', display: 'flex', gap: 8 }}>
@@ -413,11 +569,151 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
             </div>
           )}
 
-          {/* Save as activity */}
+          {/* ═══════════════════════════════════════════════════════════ */}
+          {/* ACTIONS PANEL                                               */}
+          {/* ═══════════════════════════════════════════════════════════ */}
+          <div style={{ border: '1.5px solid #0F6E56', borderRadius: 12, overflow: 'hidden' }}>
+
+            {/* Panel header */}
+            <div style={{ background: '#0F6E56', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ color: 'white', fontWeight: 700, fontSize: 14 }}>⚡ Actions</span>
+              {!account && dealAccounts.length > 0 && (
+                <select
+                  value={selectedDealId}
+                  onChange={e => setSelectedDealId(e.target.value)}
+                  style={{ fontSize: 12, borderRadius: 6, padding: '4px 8px', border: 'none', background: 'rgba(255,255,255,0.15)', color: 'white', cursor: 'pointer', maxWidth: 180 }}
+                >
+                  <option value="">— Select deal —</option>
+                  {dealAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              )}
+            </div>
+
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+              {/* Quick action buttons */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ fontSize: 12 }}
+                  onClick={generateDraftEmail}
+                  disabled={draftEmailLoading}
+                >
+                  {draftEmailLoading ? <><Spinner /> Drafting…</> : '✉️ Draft email'}
+                </button>
+              </div>
+
+              {/* Draft email output */}
+              {draftEmail && (
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Draft email</div>
+                  <textarea
+                    className="form-input"
+                    rows={10}
+                    value={draftEmail}
+                    onChange={e => setDraftEmail(e.target.value)}
+                    style={{ fontSize: 12, lineHeight: 1.65, fontFamily: 'inherit' }}
+                  />
+                  <button
+                    className={'btn btn-sm ' + (emailCopied ? 'btn-primary' : 'btn-secondary')}
+                    style={{ fontSize: 11, marginTop: 6 }}
+                    onClick={() => navigator.clipboard.writeText(draftEmail).then(() => { setEmailCopied(true); setTimeout(() => setEmailCopied(false), 2000) })}
+                  >
+                    {emailCopied ? '✓ Copied!' : 'Copy email'}
+                  </button>
+                </div>
+              )}
+
+              {/* Save to deal — 3 collapsible sections */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Save to {targetAccount ? targetAccount.name : 'deal'}</div>
+
+                {/* Signals */}
+                {signalCandidates.length > 0 && (
+                  <CollapsibleSection
+                    title={'🔔 Signals to save'}
+                    badge={selectedSignalIdxs.size + '/' + signalCandidates.length}
+                    open={openSaveSection === 'signals'}
+                    onToggle={() => toggleSection('signals')}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                      {signalCandidates.map((s, i) => (
+                        <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedSignalIdxs.has(i)}
+                            onChange={() => toggleSignal(i)}
+                            style={{ marginTop: 3, accentColor: '#0F6E56', flexShrink: 0 }}
+                          />
+                          <div>
+                            <span className={'badge badge-' + s.priority} style={{ marginRight: 6 }}>{s.priority}</span>
+                            <span style={{ fontSize: 13, color: '#374151' }}>{s.title}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      style={{ fontSize: 12 }}
+                      onClick={saveSelectedSignals}
+                      disabled={savingSignals || selectedSignalIdxs.size === 0}
+                    >
+                      {savingSignals ? <><Spinner /> Saving…</> : 'Save selected signals'}
+                    </button>
+                  </CollapsibleSection>
+                )}
+
+                {/* Log activity */}
+                <CollapsibleSection
+                  title={'📋 Log activity'}
+                  open={openSaveSection === 'activity'}
+                  onToggle={() => toggleSection('activity')}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, background: '#f9fafb', borderRadius: 8, padding: '10px 12px', fontSize: 13 }}>
+                    <div><strong>Type:</strong> Note</div>
+                    <div><strong>Title:</strong> {'RFQ received — ' + (analysis.buyer || targetAccount?.name || '…')}</div>
+                    {analysis.budget && <div><strong>Budget:</strong> {analysis.budget}</div>}
+                    {analysis.deadline && <div><strong>Deadline:</strong> {analysis.deadline}</div>}
+                    {analysis.key_questions?.[0] && <div style={{ color: '#0F6E56' }}><strong>Next:</strong> {analysis.key_questions[0]}</div>}
+                  </div>
+                  <button
+                    className={'btn btn-sm ' + (activitySaved ? 'btn-secondary' : 'btn-primary')}
+                    style={{ fontSize: 12 }}
+                    onClick={logActivity}
+                    disabled={savingActivity || activitySaved}
+                  >
+                    {savingActivity ? <><Spinner /> Logging…</> : activitySaved ? '✓ Activity logged' : 'Log activity'}
+                  </button>
+                </CollapsibleSection>
+
+                {/* Save to notes */}
+                <CollapsibleSection
+                  title={'📝 Save to notes'}
+                  open={openSaveSection === 'notes'}
+                  onToggle={() => toggleSection('notes')}
+                >
+                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12, lineHeight: 1.55 }}>
+                    Saves the win strategy and red flags to {targetAccount ? targetAccount.name + "'s" : 'the deal'} Notes tab. Appended below any existing notes.
+                  </div>
+                  <button
+                    className={'btn btn-sm ' + (notesSaved ? 'btn-secondary' : 'btn-primary')}
+                    style={{ fontSize: 12 }}
+                    onClick={saveToNotes}
+                    disabled={savingNotes || notesSaved}
+                  >
+                    {savingNotes ? <><Spinner /> Saving…</> : notesSaved ? '✓ Notes saved' : 'Save to notes'}
+                  </button>
+                </CollapsibleSection>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Legacy save-as-activity (for embedded callback mode) */}
           {onSaveActivity && (
             <button
-              className="btn btn-primary btn-sm"
-              style={{ alignSelf: 'flex-start', fontSize: 13, marginTop: 4 }}
+              className="btn btn-secondary btn-sm"
+              style={{ alignSelf: 'flex-start', fontSize: 12 }}
               onClick={() => onSaveActivity({
                 type: 'note',
                 title: 'RFQ Analysis — ' + (analysis.title || account?.name || 'RFQ'),
@@ -431,9 +727,10 @@ export default function RFQReader({ user, showToast, account, embedded = false, 
                 next: analysis.key_questions?.[0] || '',
               })}
             >
-              💾 Save as activity
+              💾 Save as activity (quick)
             </button>
           )}
+
         </div>
       )}
     </div>
