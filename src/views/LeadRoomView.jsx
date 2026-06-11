@@ -4,7 +4,7 @@ import { uid } from '../lib/supabase'
 import { callAI, serperSearch, serperMapsSearch, tavilySearch, hunterSearch, hunterPersonEmail, scoreLead, extractJSON, extractSignals, buildSearchQuery, buildAIContext, getResearchCache, setResearchCache } from '../lib/ai'
 import { ev } from '../lib/analytics'
 import { isDemoUser, getDemoKey, DEMO_RESEARCH, DEMO_EMAILS, DEMO_PROSPECTS, delay } from '../lib/demo'
-import { initials, cleanDomain, loadProfile, exportAccountsCSV } from '../lib/helpers'
+import { initials, cleanDomain, loadProfile, buildRepContext } from '../lib/helpers'
 import { loadICP, scoreProspectICP, linkedInSearchStrings, buildICPContext } from '../lib/icp'
 import MarketIntelPanel from '../components/shared/MarketIntelPanel'
 import RFQReader from '../components/shared/RFQReader'
@@ -424,6 +424,170 @@ const addToHistory = (name) => {
   lsSet(LS_RESEARCH_HISTORY, updated)
 }
 
+// ── Cold Email Panel ─────────────────────────────────────────────
+const HOOK_TYPES = [
+  { value: 'REFERRAL', label: '🤝 Referral' },
+  { value: 'NEW_ROLE', label: '🧑‍💼 New role' },
+  { value: 'EXPANSION', label: '📈 Expansion' },
+  { value: 'DEAL', label: '🤝 Live deal' },
+  { value: 'MANDATE', label: '📋 New mandate' },
+  { value: 'SERVICE_PAIN', label: '⚠ Service pain' },
+]
+
+function ColdEmailPanel({ profile, user, showToast }) {
+  const [hookType, setHookType] = useState('SERVICE_PAIN')
+  const [referralName, setReferralName] = useState('')
+  const [seniority, setSeniority] = useState('ops') // 'csuite' | 'ops'
+  const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState(null)
+  const [subCopied, setSubCopied] = useState(false)
+  const [bodyCopied, setBodyCopied] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  const copy = (text, setSt) => { navigator.clipboard.writeText(text); setSt(true); setTimeout(() => setSt(false), 1600) }
+
+  const draft = async () => {
+    setLoading(true); setEmail(null)
+    try {
+      const repProfile = loadProfile(user?.id)
+      const { repName, repCtx } = buildRepContext(repProfile)
+      const signOff = repProfile ? [
+        'REP PROFILE:',
+        repName ? 'Name: ' + repName : '',
+        repProfile.jobTitle ? 'Title: ' + repProfile.jobTitle : '',
+        repProfile.territory ? 'Territory: ' + repProfile.territory : '',
+        repProfile.company ? 'Company: ' + repProfile.company : '',
+        repProfile.mobile ? 'Mobile: ' + repProfile.mobile : '',
+      ].filter(Boolean).join('\n') : ''
+
+      const hookDesc = {
+        REFERRAL: 'referral from ' + (referralName || 'a mutual contact'),
+        NEW_ROLE: 'recent appointment to their new role',
+        EXPANSION: 'their announced expansion or new facility',
+        DEAL: 'a live deal or contract in their market',
+        MANDATE: 'a new mandate or tender they have issued',
+        SERVICE_PAIN: 'known challenges with their current packaging or production line',
+      }
+
+      const templateRule = seniority === 'csuite'
+        ? 'Template A (C-suite): Under 60 words total. Every word earns its place. No pleasantries.'
+        : 'Template B (Ops/GM): Under 125 words. Conversational, operational focus.'
+
+      const system = `You are an expert B2B sales email writer for ${repName || 'a sales rep'} at Select Equip, an Australian packaging automation company selling tray sealers, flow wrap, VFFS, weighing and case packing equipment to food manufacturers across WA and SA.
+
+HOOK: ${hookDesc[hookType]}
+TARGET AUDIENCE: ${seniority === 'csuite' ? 'C-suite executive (CEO, MD, Owner)' : 'Operations Manager, GM, Production Manager'}
+
+FORMULA — follow this 5-part structure:
+1. Hook: Open with the specific intel (${hookDesc[hookType]}). Never generic.
+2. Understanding: One sentence showing you understand their world — vertical, scale, challenge.
+3. Permission question: Soft ask — "is this something you're reviewing?" not a pitch.
+4. Low-commitment reason to meet: in-person date, 15-min call, floor walk.
+5. One specific CTA: "Worth a call?" or "Would you be open to..." — easy yes/no.
+
+${templateRule}
+
+RULES:
+- Never start with "I"
+- One CTA only — never multiple asks
+- No jargon (VFFS, throughput, ROI) in cold emails
+- Subject line: under 7 words, about THEM, conversational question
+- No hook = ask for intel first, do not draft
+
+${signOff}${repCtx ? '\n\nAdditional rep context: ' + repCtx : ''}
+
+Output format:
+SUBJECT: [subject line]
+---
+[email body]`
+
+      const result = await callAI(system, [{
+        role: 'user',
+        content: `Company: ${profile.name}
+Industry: ${profile.industry || ''}
+Location: ${profile.location || ''}
+Size: ${profile.size || ''}
+Description: ${profile.description || ''}
+Key signals: ${(profile.signals || []).slice(0, 2).map(s => s.title + ': ' + s.body).join(' | ')}
+${hookType === 'REFERRAL' && referralName ? 'Referred by: ' + referralName : ''}`
+      }], 450)
+
+      const sub = (result.match(/SUBJECT:\s*(.+?)(?:\n|$)/) || [])[1]?.trim() || ''
+      const body = (result.match(/---\s*\n([\s\S]+)/) || [])[1]?.trim() || result
+      setEmail({ sub, body })
+    } catch (e) { showToast(e.message || 'Draft failed', 'error') }
+    setLoading(false)
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 12, border: '0.5px solid #e5e5e5' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>✉️ Draft cold email</div>
+        <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => setOpen(o => !o)}>
+          {open ? 'Collapse' : 'Open'}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          {/* Hook type */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 500, marginBottom: 6 }}>Hook — what's your in?</div>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {HOOK_TYPES.map(h => (
+                <button key={h.value} className="btn btn-sm" style={{ fontSize: 11, background: hookType === h.value ? '#1f2937' : 'white', color: hookType === h.value ? 'white' : '#374151', border: '0.5px solid ' + (hookType === h.value ? '#1f2937' : '#d4d4d4') }} onClick={() => setHookType(h.value)}>{h.label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Referral name */}
+          {hookType === 'REFERRAL' && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 500, marginBottom: 4 }}>Referral name</div>
+              <input className="form-input" style={{ fontSize: 13 }} placeholder="Who referred you?" value={referralName} onChange={e => setReferralName(e.target.value)} />
+            </div>
+          )}
+
+          {/* Seniority toggle */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 500, marginBottom: 6 }}>Contact seniority</div>
+            <div style={{ display: 'flex', gap: 5 }}>
+              <button className="btn btn-sm" style={{ fontSize: 11, background: seniority === 'csuite' ? '#1f2937' : 'white', color: seniority === 'csuite' ? 'white' : '#374151', border: '0.5px solid ' + (seniority === 'csuite' ? '#1f2937' : '#d4d4d4') }} onClick={() => setSeniority('csuite')}>C-suite (Template A — 60 words)</button>
+              <button className="btn btn-sm" style={{ fontSize: 11, background: seniority === 'ops' ? '#1f2937' : 'white', color: seniority === 'ops' ? 'white' : '#374151', border: '0.5px solid ' + (seniority === 'ops' ? '#1f2937' : '#d4d4d4') }} onClick={() => setSeniority('ops')}>Ops / GM (Template B — 125 words)</button>
+            </div>
+          </div>
+
+          <button className="btn btn-primary" onClick={draft} disabled={loading}>
+            {loading ? <><Spinner /> Drafting…</> : '✉️ Draft cold email'}
+          </button>
+
+          {email && (
+            <div style={{ marginTop: 14 }}>
+              {email.sub && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>Subject</div>
+                    <button className="btn btn-secondary btn-sm" style={{ fontSize: 10 }} onClick={() => copy(email.sub, setSubCopied)}>{subCopied ? '✓ Copied' : 'Copy subject'}</button>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, background: '#f9fafb', padding: '8px 10px', borderRadius: 6, border: '0.5px solid #e5e5e5' }}>{email.sub}</div>
+                </div>
+              )}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>Body</div>
+                  <button className="btn btn-primary btn-sm" style={{ fontSize: 10 }} onClick={() => copy(email.body, setBodyCopied)}>{bodyCopied ? '✓ Copied!' : '📋 Copy email'}</button>
+                </div>
+                <div className="ai-output" style={{ fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{email.body}</div>
+              </div>
+              <button className="btn btn-secondary btn-sm" style={{ fontSize: 10, marginTop: 8 }} onClick={() => setEmail(null)}>Clear</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Company Research ─────────────────────────────────────────────
 function CompanyResearch({ user, saveAccount, showToast, setActiveId, setView, goToEmail, goToProspect, initialQuery }) {
   const [query, setQuery] = useState(initialQuery || '')
@@ -791,6 +955,9 @@ Stakeholder rules:
               </div>
             )
           })()}
+
+          {/* Cold Email Panel */}
+          <ColdEmailPanel profile={profile} user={user} showToast={showToast} />
         </div>
       )}
     </div>

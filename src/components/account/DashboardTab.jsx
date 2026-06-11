@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useApp } from '../../lib/context'
 import { uid } from '../../lib/supabase'
 import { STAGE_LABELS, RISK_COLORS, PRIORITY_COLORS, PRIORITY_BG } from '../../lib/helpers'
+import { ReminderCard } from '../shared/EmailsTab'
 
 export default function DashboardTab({ account, onEdit }) {
   const { saveAccount, showToast } = useApp()
@@ -186,6 +187,9 @@ export default function DashboardTab({ account, onEdit }) {
               <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{account.description}</div>
             </div>
           )}
+
+          {/* Reminders */}
+          <ReminderCard account={account} save={save} showToast={showToast} />
         </div>
       </div>
     </div>

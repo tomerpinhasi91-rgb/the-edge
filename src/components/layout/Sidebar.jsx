@@ -3,6 +3,12 @@ import { initials } from '../../lib/helpers'
 import LogoMark from '../ui/LogoMark'
 import tenant from '../../lib/tenant'
 
+// Returns true if account has a reminder due today or overdue (not completed)
+const hasOverdueReminder = (account) => {
+  const today = new Date().toISOString().split('T')[0]
+  return (account.reminders || []).some(r => !r.completed && r.date <= today)
+}
+
 export default function Sidebar({ view, setView, activeId, setActiveId }) {
   const { user, leads, dealAccounts, isAdmin } = useApp()
   const go = (v, id = null) => { setView(v); setActiveId(id) }
@@ -67,10 +73,13 @@ export default function Sidebar({ view, setView, activeId, setActiveId }) {
                 onClick={() => go('lead', l.id)}
               >
                 <div className="account-avatar" style={{ background: 'rgba(245,158,11,0.15)', color: '#F59E0B' }}>{initials(l.name)}</div>
-                <div style={{ minWidth: 0 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <div className="account-name">{l.name}</div>
                   <div className="account-meta">{l.industry}</div>
                 </div>
+                {hasOverdueReminder(l) && (
+                  <span title="Reminder due" style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', flexShrink: 0, marginLeft: 4, marginTop: 2 }} />
+                )}
               </div>
             ))
           )}
@@ -96,10 +105,13 @@ export default function Sidebar({ view, setView, activeId, setActiveId }) {
                 onClick={() => go('account', a.id)}
               >
                 <div className="account-avatar">{initials(a.name)}</div>
-                <div style={{ minWidth: 0 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <div className="account-name">{a.name}</div>
                   <div className="account-meta">{a.stage ? a.stage.charAt(0).toUpperCase() + a.stage.slice(1) : ''}{a.location ? ' · ' + a.location : ''}</div>
                 </div>
+                {hasOverdueReminder(a) && (
+                  <span title="Reminder due" style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', flexShrink: 0, marginLeft: 4, marginTop: 2 }} />
+                )}
               </div>
             ))
           )}

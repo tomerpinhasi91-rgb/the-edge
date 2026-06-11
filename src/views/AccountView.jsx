@@ -6,6 +6,7 @@ import ActivitiesTab from '../components/account/ActivitiesTab'
 import IntelligenceTab from '../components/account/IntelligenceTab'
 import CoachTab from '../components/account/CoachTab'
 import RFQReader from '../components/shared/RFQReader'
+import EmailsTab from '../components/shared/EmailsTab'
 import Modal from '../components/ui/Modal'
 import { STAGE_LABELS, exportAccountsCSV } from '../lib/helpers'
 
@@ -71,6 +72,7 @@ export default function AccountView({ account, setView }) {
     { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
     { key: 'notes', label: 'Notes' },
+    { key: 'emails', label: '✉️ Emails' },
     { key: 'coach', label: 'AI Coach' },
   ]
 
@@ -103,6 +105,7 @@ export default function AccountView({ account, setView }) {
       {tab === 'activities' && <ActivitiesTab account={account} />}
       {tab === 'contacts' && <ContactsTab account={account} />}
       {tab === 'notes' && <NotesTab account={account} />}
+      {tab === 'emails' && <EmailsTab account={account} save={(updates) => saveAccount({ ...account, ...updates })} user={user} showToast={showToast} mode="deal" />}
       {tab === 'coach' && <CoachTab account={account} />}
 
       {/* Edit modal */}

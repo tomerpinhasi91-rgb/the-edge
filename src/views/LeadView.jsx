@@ -7,6 +7,8 @@ import { initials, PRIORITY_COLORS, PRIORITY_BG, loadProfile, buildRepContext, e
 import { loadICP, buildICPContext } from '../lib/icp'
 import ActivitiesTab from '../components/account/ActivitiesTab'
 import RFQReader from '../components/shared/RFQReader'
+import EmailsTab from '../components/shared/EmailsTab'
+import { ReminderCard } from '../components/shared/EmailsTab'
 import MarketIntelPanel from '../components/shared/MarketIntelPanel'
 import Modal from '../components/ui/Modal'
 import Spinner from '../components/ui/Spinner'
@@ -82,6 +84,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
     { key: 'activities', label: 'Activities' },
     { key: 'contacts', label: 'Contacts' },
     { key: 'notes', label: 'Notes' },
+    { key: 'emails', label: '✉️ Emails' },
     { key: 'coach', label: 'AI Coach' },
   ]
 
@@ -110,6 +113,7 @@ export default function LeadView({ lead, setView, setActiveId }) {
       {tab === 'activities' && <ActivitiesTab account={lead} isLead={true} onConvert={promote} />}
       {tab === 'contacts' && <LeadContacts lead={lead} save={save} showToast={showToast} />}
       {tab === 'notes' && <LeadNotes lead={lead} save={save} showToast={showToast} />}
+      {tab === 'emails' && <EmailsTab account={lead} save={save} user={user} showToast={showToast} mode="lead" />}
       {tab === 'coach' && <LeadCoach lead={lead} save={save} user={user} showToast={showToast} />}
 
       {editOpen && editForm && (
@@ -279,6 +283,9 @@ function LeadOverview({ lead, save, promote, showToast, user, onEdit }) {
           ))}
         </div>
       )}
+
+      {/* Reminders */}
+      <ReminderCard account={lead} save={save} showToast={showToast} />
 
       {/* CTA banner — "Ready to work this deal?" */}
       <div style={{ background: '#FAEEDA', border: '0.5px solid #BA7517', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
