@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import { useApp } from '../../lib/context'
 import { callAIStream } from '../../lib/ai'
 import { isDemoUser, delay } from '../../lib/demo'
+import { runAutoSweep, getAutoSweepResult } from '../../lib/autosweep'
 import Spinner from './Spinner'
 
 const PROPOSAL_STAGES = ['proposal', 'negotiate', 'closing']
@@ -42,6 +44,7 @@ function scanGoingCold(accounts) {
 }
 
 export default function MorningBriefing({ accounts, user, setView, setActiveId }) {
+  const { saveAccount } = useApp()
   const today = new Date().toISOString().split('T')[0]
   const storageKey = `te_briefing_${today}_${user?.id}`
 
@@ -51,8 +54,24 @@ export default function MorningBriefing({ accounts, user, setView, setActiveId }
   const [aiText, setAiText] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiDone, setAiDone] = useState(false)
+  const [overnight, setOvernight] = useState(() => getAutoSweepResult(user?.id))
+  const [sweeping, setSweeping] = useState(false)
   const coldItems = scanGoingCold(accounts)
   const hasStarted = useRef(false)
+  const sweepStarted = useRef(false)
+
+  // ── Overnight auto-sweep — once per day, runs even if briefing dismissed ──
+  useEffect(() => {
+    if (!user || sweepStarted.current || isDemoUser(user)) return
+    sweepStarted.current = true
+    const leads = accounts.filter(a => a._type === 'lead')
+    if (!leads.length) return
+    if (getAutoSweepResult(user.id)) return // already ran today
+    setSweeping(true)
+    runAutoSweep(user, leads, saveAccount)
+      .then(r => { if (r) setOvernight(r) })
+      .finally(() => setSweeping(false))
+  }, [user, accounts])
 
   const dismiss = () => {
     try { localStorage.setItem(storageKey, '1') } catch (e) {}
@@ -133,6 +152,42 @@ export default function MorningBriefing({ accounts, user, setView, setActiveId }
           ×
         </button>
       </div>
+
+      {/* Overnight signals */}
+      {sweeping && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
+          <Spinner /> <span>Sweeping your pipeline for overnight signals…</span>
+        </div>
+      )}
+      {overnight && overnight.count > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+            🌙 New overnight — {overnight.count} signal{overnight.count > 1 ? 's' : ''}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {overnight.items.map((item, i) => (
+              <div
+                key={i}
+                onClick={() => { if (setActiveId && setView) { setActiveId(item.leadId); setView('lead') } }}
+                style={{
+                  background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 10,
+                  padding: '8px 12px', cursor: 'pointer', transition: 'border-color 0.15s',
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8', marginBottom: 2 }}>
+                  ⚡ {item.name} <span style={{ fontWeight: 400, color: '#6b7280' }}>— {item.count} new</span>
+                </div>
+                {item.titles.map((t, j) => (
+                  <div key={j} style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>• {t}</div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {overnight && overnight.count === 0 && !sweeping && (
+        <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 10 }}>🌙 Overnight sweep done — no new signals across your top leads</div>
+      )}
 
       {/* Going cold chips */}
       {coldItems.length > 0 && (

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useApp } from '../../lib/context'
 import { loadProfile } from '../../lib/helpers'
+import { serperSearch, callAI, extractJSON } from '../../lib/ai'
+import Spinner from './Spinner'
 
 const saveProfileToStorage = (userId, profile) => {
   try { localStorage.setItem('te_profile_' + userId, JSON.stringify(profile)) } catch (e) {}
@@ -15,15 +17,58 @@ export default function OnboardingModal({ onDone }) {
     firstName: '', lastName: '', company: '', jobTitle: '',
     whatYouSell: '', targetMarket: '', territory: '', typicalDealSize: '',
   })
+  const [website, setWebsite] = useState('')
+  const [autoFilling, setAutoFilling] = useState(false)
+  const [autoFilled, setAutoFilled] = useState(false)
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
+  // ✨ Magic moment — paste website, AI fills the profile
+  const autoFill = async () => {
+    const domain = website.trim().replace(/^https?:\/\/(www\.)?/, '').split('/')[0]
+    if (!domain || !domain.includes('.')) return
+    setAutoFilling(true)
+    try {
+      const data = await serperSearch(domain + ' company about products services', false)
+      const kg = data.knowledgeGraph
+      const context = [
+        kg?.title ? `OVERVIEW: ${kg.title}${kg.type ? ' (' + kg.type + ')' : ''} — ${kg.description || ''}` : '',
+        ...(data.organic || []).slice(0, 6).map(r => `${r.title}: ${(r.snippet || '').slice(0, 220)}`),
+      ].filter(Boolean).join('\n')
+      const result = await callAI(
+        'Extract seller profile data from search results about a company. Return ONLY valid JSON: {"company":"official company name","whatYouSell":"one sentence — what products/services they sell and to whom","targetMarket":"the industries/customer types they sell to, comma-separated","territory":"geographic region they operate in, or empty string"}. Be specific and factual — use only what the data supports.',
+        [{ role: 'user', content: `Company website: ${domain}\n\nSearch data:\n${context}` }], 300
+      )
+      const parsed = extractJSON(result)
+      if (parsed) {
+        setForm(prev => ({
+          ...prev,
+          company: prev.company || parsed.company || '',
+          whatYouSell: prev.whatYouSell || parsed.whatYouSell || '',
+          targetMarket: prev.targetMarket || parsed.targetMarket || '',
+          territory: prev.territory || parsed.territory || '',
+        }))
+        setAutoFilled(true)
+      }
+    } catch (e) { /* silent — user can fill manually */ }
+    setAutoFilling(false)
+  }
+
   const save = () => {
     if (user?.id) {
-      saveProfileToStorage(user.id, form)
+      saveProfileToStorage(user.id, { ...form, website })
     }
     // Mark onboarding as done — won't show again
     try { localStorage.setItem('te_onboarded_' + user?.id, '1') } catch (e) {}
+    // 🚀 Kickstart — queue the first prospect search so the user sees
+    // real ICP-scored companies seconds after finishing onboarding
+    const industry = (form.targetMarket || form.whatYouSell || '').split(/[,;\/]| and /i)[0].trim()
+    if (industry && industry.length > 2) {
+      try {
+        localStorage.setItem('te_kickstart', JSON.stringify({ query: industry, location: form.territory || 'Australia' }))
+        window.dispatchEvent(new CustomEvent('te-kickstart'))
+      } catch (e) {}
+    }
     onDone()
   }
 
@@ -61,9 +106,24 @@ export default function OnboardingModal({ onDone }) {
         {step === 1 && (
           <>
             <div style={{ fontSize: 22, fontWeight: 700, color: '#1f2937', marginBottom: 6 }}>Welcome to The Edge 👋</div>
-            <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 18, lineHeight: 1.5 }}>
               Tell us about yourself so the AI can give you hyper-relevant research, coaching and outreach.
             </div>
+
+            {/* ✨ Magic auto-fill from website */}
+            <div style={{ background: 'linear-gradient(135deg, #f0fdf7, #e1f5ee)', border: '1px solid #9FE1CB', borderRadius: 12, padding: '12px 14px', marginBottom: 18 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#0F6E56', marginBottom: 6 }}>✨ Fast track — paste your company website</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="form-input" style={{ flex: 1, fontSize: 13 }} placeholder="yourcompany.com.au"
+                  value={website} onChange={e => setWebsite(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !autoFilling && autoFill()} />
+                <button className="btn btn-primary btn-sm" style={{ flexShrink: 0 }} onClick={autoFill} disabled={autoFilling || !website.trim()}>
+                  {autoFilling ? <><Spinner /> Reading…</> : 'Auto-fill'}
+                </button>
+              </div>
+              {autoFilled && <div style={{ fontSize: 11, color: '#0F6E56', marginTop: 6 }}>✓ Done — check the fields below and adjust anything we got wrong</div>}
+            </div>
+
             <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>First name *</label>
@@ -150,8 +210,13 @@ export default function OnboardingModal({ onDone }) {
             </div>
 
             <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px 0', fontSize: 14 }} onClick={save}>
-              Let's go →
+              Let's go — find my first prospects →
             </button>
+            {form.targetMarket && (
+              <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 8 }}>
+                We'll run your first prospect search for "{(form.targetMarket || '').split(/[,;\/]/)[0].trim()}" automatically
+              </div>
+            )}
           </>
         )}
       </div>

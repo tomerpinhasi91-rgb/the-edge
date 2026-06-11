@@ -202,9 +202,25 @@ function ProspectFinder({ user, showToast, goToResearch, goToEmail, setView, ini
   const blockedCount = (prefs.blocked || []).length
   const likedCount   = (prefs.liked   || []).reduce((s, l) => s + (l.count || 1), 0)
 
-  const run = async () => {
-    const cat = category.trim()
-    const loc = location.trim() || 'Australia'
+  // 🚀 Onboarding kickstart — auto-run the user's first prospect search
+  useEffect(() => {
+    const consume = () => {
+      let k = null
+      try { k = JSON.parse(localStorage.getItem('te_kickstart')) } catch (e) {}
+      if (!k || !k.query) return
+      try { localStorage.removeItem('te_kickstart') } catch (e) {}
+      setCategory(k.query)
+      setLocation(k.location || 'Australia')
+      run(k.query, k.location || 'Australia')
+    }
+    consume()
+    window.addEventListener('te-kickstart', consume)
+    return () => window.removeEventListener('te-kickstart', consume)
+  }, [])
+
+  const run = async (catOverride, locOverride) => {
+    const cat = (typeof catOverride === 'string' ? catOverride : category).trim()
+    const loc = ((typeof locOverride === 'string' && locOverride) ? locOverride : location).trim() || 'Australia'
     if (!cat) return showToast('Enter what you are looking for', 'error')
     setLoading(true); setProspects([]); setStatus('Searching Google...')
 
