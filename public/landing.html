@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Edge — Intelligence that closes deals</title>
+<meta name="description" content="The Edge is the AI sales intelligence platform for B2B reps. Find prospects, research companies, get coached, and close more deals — all in one place." />
+<link rel="icon" href="/favicon.svg" />
+<style>
+  :root {
+    --green: #0F6E56;
+    --green-mid: #1D9E75;
+    --green-bg: #e1f5ee;
+    --green-dark: #0d2b1e;
+    --amber: #F59E0B;
+    --amber-bg: #FAEEDA;
+    --ink: #1f2937;
+    --grey: #6b7280;
+    --grey-light: #9ca3af;
+    --line: #e5e7eb;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.6;
+    background: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── Nav ── */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(10px);
+    border-bottom: 0.5px solid var(--line);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.3px; }
+  .logo-mark {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--green), var(--green-mid));
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 13px; font-weight: 700;
+  }
+  .btn {
+    display: inline-block; padding: 10px 22px; border-radius: 10px;
+    font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer;
+    transition: all 0.15s ease; border: none;
+  }
+  .btn-primary { background: var(--green); color: #fff; }
+  .btn-primary:hover { background: var(--green-mid); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(15,110,86,0.25); }
+  .btn-ghost { color: var(--green); background: transparent; }
+  .btn-ghost:hover { background: var(--green-bg); }
+  .btn-lg { padding: 15px 34px; font-size: 16px; border-radius: 12px; }
+  .btn-white { background: #fff; color: var(--green); }
+  .btn-white:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,0,0,0.2); }
+
+  /* ── Hero ── */
+  .hero { padding: 88px 0 72px; text-align: center; background: radial-gradient(ellipse 80% 60% at 50% -10%, var(--green-bg), transparent); }
+  .pill {
+    display: inline-block; font-size: 12px; font-weight: 600; color: var(--green);
+    background: var(--green-bg); border: 1px solid #9FE1CB;
+    padding: 5px 14px; border-radius: 100px; margin-bottom: 22px;
+  }
+  h1 {
+    font-size: clamp(34px, 5.5vw, 56px); font-weight: 800; letter-spacing: -1.5px;
+    line-height: 1.1; margin-bottom: 20px;
+  }
+  h1 .accent { color: var(--green); }
+  .hero p { font-size: 18px; color: var(--grey); max-width: 620px; margin: 0 auto 34px; }
+  .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .hero-note { font-size: 13px; color: var(--grey-light); margin-top: 16px; }
+
+  /* ── Logos strip / proof bar ── */
+  .proof { padding: 26px 0; border-top: 0.5px solid var(--line); border-bottom: 0.5px solid var(--line); }
+  .proof-inner { display: flex; justify-content: center; gap: clamp(20px, 6vw, 70px); flex-wrap: wrap; text-align: center; }
+  .proof-item strong { display: block; font-size: 26px; font-weight: 800; color: var(--green); letter-spacing: -0.5px; }
+  .proof-item span { font-size: 12px; color: var(--grey); }
+
+  /* ── Sections ── */
+  section { padding: 80px 0; }
+  .kicker { font-size: 12px; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px; }
+  h2 { font-size: clamp(26px, 4vw, 38px); font-weight: 800; letter-spacing: -1px; line-height: 1.15; margin-bottom: 14px; }
+  .sub { font-size: 16px; color: var(--grey); max-width: 600px; }
+  .center { text-align: center; }
+  .center .sub { margin: 0 auto; }
+
+  /* ── Problem cards ── */
+  .problems { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 44px; }
+  .problem {
+    background: #fff; border: 0.5px solid var(--line); border-radius: 14px; padding: 24px;
+    border-top: 3px solid #A32D2D;
+  }
+  .problem .emoji { font-size: 26px; margin-bottom: 10px; display: block; }
+  .problem h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .problem p { font-size: 13.5px; color: var(--grey); }
+
+  /* ── Feature grid ── */
+  .features-section { background: #fafdfb; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; margin-top: 48px; }
+  .feature {
+    background: #fff; border: 0.5px solid var(--line); border-radius: 16px; padding: 28px;
+    transition: all 0.2s ease;
+  }
+  .feature:hover { box-shadow: 0 8px 30px rgba(15,110,86,0.1); transform: translateY(-2px); border-color: #9FE1CB; }
+  .feature .icon {
+    width: 44px; height: 44px; border-radius: 12px; background: var(--green-bg);
+    display: flex; align-items: center; justify-content: center; font-size: 21px; margin-bottom: 16px;
+  }
+  .feature h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.3px; }
+  .feature p { font-size: 14px; color: var(--grey); }
+  .feature .tag {
+    display: inline-block; font-size: 10px; font-weight: 700; color: var(--amber);
+    background: var(--amber-bg); padding: 2px 8px; border-radius: 20px;
+    margin-left: 8px; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+
+  /* ── How it works ── */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; margin-top: 48px; }
+  .step { position: relative; padding: 28px; background: #fff; border: 0.5px solid var(--line); border-radius: 16px; }
+  .step-num {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--green); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; margin-bottom: 16px;
+  }
+  .step h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .step p { font-size: 14px; color: var(--grey); }
+
+  /* ── Quote ── */
+  .quote-section { background: var(--green-dark); color: #fff; text-align: center; }
+  .quote-section blockquote { font-size: clamp(20px, 3vw, 28px); font-weight: 600; letter-spacing: -0.5px; line-height: 1.4; max-width: 760px; margin: 0 auto 18px; }
+  .quote-section cite { font-style: normal; font-size: 14px; color: #9FE1CB; }
+
+  /* ── Pricing ── */
+  .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 20px; margin-top: 48px; max-width: 920px; margin-left: auto; margin-right: auto; }
+  .plan { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 32px 28px; text-align: left; position: relative; }
+  .plan.featured { border: 2px solid var(--green); box-shadow: 0 12px 40px rgba(15,110,86,0.12); }
+  .plan .badge {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--green); color: #fff; font-size: 11px; font-weight: 700;
+    padding: 4px 14px; border-radius: 100px; white-space: nowrap;
+  }
+  .plan h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .plan .price { font-size: 36px; font-weight: 800; letter-spacing: -1px; margin: 10px 0 2px; }
+  .plan .price span { font-size: 14px; font-weight: 500; color: var(--grey); letter-spacing: 0; }
+  .plan .desc { font-size: 13px; color: var(--grey); margin-bottom: 20px; }
+  .plan ul { list-style: none; margin-bottom: 26px; }
+  .plan li { font-size: 13.5px; color: var(--ink); padding: 7px 0; border-bottom: 0.5px solid #f3f4f6; display: flex; gap: 8px; }
+  .plan li::before { content: "✓"; color: var(--green); font-weight: 700; flex-shrink: 0; }
+  .plan .btn { width: 100%; text-align: center; }
+  .plan .btn-outline { background: #fff; color: var(--green); border: 1.5px solid var(--green); }
+  .plan .btn-outline:hover { background: var(--green-bg); }
+
+  /* ── Final CTA ── */
+  .final-cta {
+    background: linear-gradient(135deg, var(--green), var(--green-mid));
+    border-radius: 24px; padding: clamp(40px, 6vw, 72px); text-align: center; color: #fff;
+    margin-bottom: 80px;
+  }
+  .final-cta h2 { color: #fff; }
+  .final-cta p { color: rgba(255,255,255,0.85); font-size: 16px; max-width: 520px; margin: 0 auto 30px; }
+
+  /* ── Footer ── */
+  footer { border-top: 0.5px solid var(--line); padding: 32px 0; }
+  .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  footer .small { font-size: 12px; color: var(--grey-light); }
+  footer a { color: var(--grey); text-decoration: none; font-size: 13px; }
+  footer a:hover { color: var(--green); }
+
+  @media (max-width: 640px) {
+    .hero { padding: 56px 0 48px; }
+    section { padding: 56px 0; }
+    .nav-cta-ghost { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <div class="wrap nav-inner">
+    <div class="logo"><div class="logo-mark">te</div> the edge</div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <a href="/" class="btn btn-ghost nav-cta-ghost">Log in</a>
+      <a href="/" class="btn btn-primary">Start free</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<header class="hero">
+  <div class="wrap">
+    <div class="pill">⚡ AI sales intelligence for B2B reps</div>
+    <h1>Walk into every deal<br/><span class="accent">already two steps ahead.</span></h1>
+    <p>The Edge finds your prospects, researches the company, identifies the decision-makers, drafts the outreach and coaches you through the close — so you spend your day selling, not searching.</p>
+    <div class="hero-ctas">
+      <a href="/" class="btn btn-primary btn-lg">Start free — no credit card</a>
+      <a href="#features" class="btn btn-ghost btn-lg">See what it does ↓</a>
+    </div>
+    <div class="hero-note">Set up in 2 minutes · Works on desktop &amp; mobile · Built for Australian B2B</div>
+  </div>
+</header>
+
+<!-- ── Proof bar ── -->
+<div class="proof">
+  <div class="wrap proof-inner">
+    <div class="proof-item"><strong>10×</strong><span>faster account research</span></div>
+    <div class="proof-item"><strong>60 sec</strong><span>from company name to full brief</span></div>
+    <div class="proof-item"><strong>1 place</strong><span>prospecting → research → close</span></div>
+    <div class="proof-item"><strong>0</strong><span>tabs open in your browser</span></div>
+  </div>
+</div>
+
+<!-- ── Problem ── -->
+<section>
+  <div class="wrap">
+    <div class="kicker">The problem</div>
+    <h2>Your reps don't lose deals.<br/>They lose the hours before the deal.</h2>
+    <p class="sub">The average B2B rep spends less than 30% of their week actually selling. The rest disappears into research tabs, CRM admin and "just checking in" emails that go nowhere.</p>
+    <div class="problems">
+      <div class="problem"><span class="emoji">🔍</span><h3>Research black hole</h3><p>45 minutes of Googling per account — news, LinkedIn, financials, contacts — before a single call gets made.</p></div>
+      <div class="problem"><span class="emoji">👻</span><h3>Generic outreach</h3><p>Cold emails with no hook get ignored. Reps don't have time to find the trigger event for every prospect.</p></div>
+      <div class="problem"><span class="emoji">📉</span><h3>Deals go quiet</h3><p>Follow-ups slip, "not right now" leads are never re-contacted, and pipeline quietly rots.</p></div>
+      <div class="problem"><span class="emoji">🗂</span><h3>Intel lives nowhere</h3><p>What was said on the call lives in a notebook. The org chart lives in someone's head. Nothing compounds.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ── -->
+<section class="features-section" id="features">
+  <div class="wrap">
+    <div class="center">
+      <div class="kicker">The platform</div>
+      <h2>One workspace. The whole sales motion.</h2>
+      <p class="sub">Every feature is wired to the same brain — your profile, your ICP, your deal context. The AI never starts from zero.</p>
+    </div>
+    <div class="features">
+      <div class="feature"><div class="icon">🎯</div><h3>Prospect Finder</h3><p>Type an industry and a region — get a scored list of real companies, ranked against your Ideal Customer Profile, with one-click research on each.</p></div>
+      <div class="feature"><div class="icon">🔬</div><h3>Company Research</h3><p>One search returns the full picture: buying signals with sources, key stakeholders with roles, verified email addresses and conversation-ready talking points.</p></div>
+      <div class="feature"><div class="icon">⭐</div><h3>AI Lead Scoring</h3><p>Every lead gets a 0–100 score with reasoning — urgency of signals, buyer access, market momentum — so you always work the hottest account first.</p></div>
+      <div class="feature"><div class="icon">✉️</div><h3>Email Engine<span class="tag">New</span></h3><p>Cold emails built on a proven 5-part formula, follow-ups anchored to real signals, deal emails by scenario. Paste a reply and the AI classifies it and tells you the next move.</p></div>
+      <div class="feature"><div class="icon">🎙️</div><h3>Voice Activity Logger</h3><p>Just talk after the meeting — The Edge turns your voice note into a structured activity with next steps. Built for reps who live in the car.</p></div>
+      <div class="feature"><div class="icon">📄</div><h3>RFQ Analyser</h3><p>Drop in an RFQ or tender and get the win strategy, red flags, key questions, a response checklist and a covering email — in under a minute.</p></div>
+      <div class="feature"><div class="icon">🧠</div><h3>AI Deal Coach</h3><p>An elite sales coach that knows your deal: call prep, risk checks, objection handling, meeting agendas — every answer specific to this account, not generic advice.</p></div>
+      <div class="feature"><div class="icon">☀️</div><h3>Morning Briefing</h3><p>Start each day with what changed overnight: urgent signals, due reminders, deals that need a push. Your priorities, decided before your first coffee.</p></div>
+      <div class="feature"><div class="icon">🔔</div><h3>Smart Reminders<span class="tag">New</span></h3><p>"Not right now" becomes a deal in three months — if you actually come back. The Edge resurfaces every parked lead exactly when you said you would.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How it works ── -->
+<section>
+  <div class="wrap center">
+    <div class="kicker">How it works</div>
+    <h2>From cold name to booked meeting</h2>
+    <div class="steps">
+      <div class="step"><div class="step-num" style="margin-left:auto;margin-right:auto;">1</div><h3>Point it at your market</h3><p>Tell The Edge what you sell and who you sell to. The Prospect Finder builds your target list and scores every company against your ICP.</p></div>
+      <div class="step"><div class="step-num" style="margin-left:auto;margin-right:auto;">2</div><h3>Get the full brief</h3><p>One click researches the company: live signals, decision-makers, verified emails, talking points. What used to take an hour takes a minute.</p></div>
+      <div class="step"><div class="step-num" style="margin-left:auto;margin-right:auto;">3</div><h3>Work it to the close</h3><p>Hook-based outreach, AI coaching before every call, voice-logged activities, reply analysis and reminders — until the deal is won.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Quote ── -->
+<section class="quote-section">
+  <div class="wrap">
+    <blockquote>"It's like having a research analyst, a copywriter and a sales coach in your pocket — for the price of a coffee a day."</blockquote>
+    <cite>— Field sales rep, packaging automation, WA</cite>
+  </div>
+</section>
+
+<!-- ── Pricing ── -->
+<section id="pricing">
+  <div class="wrap center">
+    <div class="kicker">Pricing</div>
+    <h2>Pays for itself with one deal</h2>
+    <p class="sub">Start free. Upgrade when The Edge becomes the first tab you open every morning.</p>
+    <div class="plans">
+      <div class="plan">
+        <h3>Starter</h3>
+        <div class="price">$0<span> /month</span></div>
+        <div class="desc">For trying it on your live pipeline</div>
+        <ul>
+          <li>5 saved leads</li>
+          <li>Company research &amp; signals</li>
+          <li>AI lead scoring</li>
+          <li>Email generators</li>
+        </ul>
+        <a href="/" class="btn btn-outline">Start free</a>
+      </div>
+      <div class="plan featured">
+        <div class="badge">Most popular</div>
+        <h3>Pro</h3>
+        <div class="price">$49<span> /month</span></div>
+        <div class="desc">For reps who carry a number</div>
+        <ul>
+          <li>Unlimited leads &amp; deals</li>
+          <li>Full AI Coach &amp; RFQ Analyser</li>
+          <li>Voice logger &amp; reply handler</li>
+          <li>Morning Briefing &amp; reminders</li>
+          <li>Verified email lookup</li>
+        </ul>
+        <a href="/" class="btn btn-primary">Start 14-day trial</a>
+      </div>
+      <div class="plan">
+        <h3>Team</h3>
+        <div class="price">Custom</div>
+        <div class="desc">White-label for sales teams of 5–30</div>
+        <ul>
+          <li>Your brand, your colours</li>
+          <li>Team pipeline visibility</li>
+          <li>Shared ICP &amp; messaging</li>
+          <li>Priority support</li>
+        </ul>
+        <a href="mailto:support@theedge.app?subject=The Edge — Team plan" class="btn btn-outline">Talk to us</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Final CTA ── -->
+<div class="wrap">
+  <div class="final-cta">
+    <h2>Your next deal is already out there.<br/>Find it first.</h2>
+    <p>Create your free account and research your first prospect in the next two minutes.</p>
+    <a href="/" class="btn btn-white btn-lg">Get The Edge — free</a>
+  </div>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="wrap footer-inner">
+    <div class="logo" style="font-size:14px;"><div class="logo-mark" style="width:26px;height:26px;font-size:11px;">te</div> the edge</div>
+    <div style="display:flex; gap:20px;">
+      <a href="/">Log in</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="mailto:support@theedge.app">Contact</a>
+    </div>
+    <div class="small">© 2026 The Edge · Intelligence that closes deals</div>
+  </div>
+</footer>
+
+</body>
+</html>
